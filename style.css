@@ -218,7 +218,8 @@ input {
   color: var(--text);
   margin-bottom: 12px;
   font-family: inherit;
-  font-size: 0.92rem;
+  /* 16px minimum avoids Safari-on-iOS auto-zooming the page on focus */
+  font-size: max(0.92rem, 16px);
 }
 input:focus { outline: none; border-color: var(--accent-dim); }
 
