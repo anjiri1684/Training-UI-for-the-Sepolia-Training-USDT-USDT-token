@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Training USDT — Trading Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="mark">₮</span>
+        <div>
+          <div class="brand-name">Training USDT</div>
+          <span class="badge">Simulation · No real value</span>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <button class="side-link active" data-view="overview" type="button">
+          <span class="side-ico">◆</span> Overview
+        </button>
+        <button class="side-link" data-view="send" type="button">
+          <span class="side-ico">↗</span> Send
+        </button>
+        <button class="side-link" data-view="approve" type="button">
+          <span class="side-ico">✓</span> Approve
+        </button>
+        <button class="side-link" data-view="tf" type="button">
+          <span class="side-ico">⇄</span> Allowances
+        </button>
+        <button class="side-link" data-view="receive" type="button">
+          <span class="side-ico">↙</span> Receive
+        </button>
+      </nav>
+
+      <div class="sidebar-section">
+        <label>Network</label>
+        <div class="tabs chain-tabs" role="tablist">
+          <button class="tab eth active" data-chain="ethereum" type="button">ETH</button>
+          <button class="tab trx" data-chain="tron" type="button">TRON</button>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <label for="accountSelect">Wallet</label>
+        <select id="accountSelect"></select>
+        <button id="connectWalletBtn" class="primary hidden" type="button" style="width:100%; margin-bottom:8px;">Connect MetaMask</button>
+        <button id="copyAddrBtn" class="addr-chip" type="button" title="Click to copy">
+          <span id="connectedAddr">Not connected</span>
+          <span class="copy-icon">⧉</span>
+        </button>
+      </div>
+
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <h1 id="viewTitle">Overview</h1>
+        <div class="topbar-right">
+          <span class="price-pill">1 USDT ≈ $1.00 <span class="simulated-tag">simulated</span></span>
+          <div class="topbar-balance">$<span id="usdBalance">0.00</span></div>
+        </div>
+      </header>
+
+      <section class="view" data-view="overview">
+        <details class="disclaimer">
+          <summary>What is this? (read before class)</summary>
+          <p>
+            This is a simulation — either fully local or a public testnet, never a real
+            network with real value. Neither token is <strong>issued by, affiliated with,
+            or backed by Tether</strong>. The "$" figures are a simulated reference (1 USDT
+            = $1) shown only inside this training interface — never reported to MetaMask,
+            TronLink, Trust Wallet, CoinMarketCap, or any real price provider.
+          </p>
+        </details>
+
+        <div class="stat-grid">
+          <div class="card stat-card">
+            <div class="stat-label">Your balance</div>
+            <div class="stat-value"><span id="tokBalance">0</span> USDT</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Total supply</div>
+            <div class="stat-value" id="totalSupply">—</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Decimals</div>
+            <div class="stat-value" id="decimalsVal">—</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">Contract address</div>
+            <div class="stat-value addr" id="contractAddrVal">—</div>
+          </div>
+        </div>
+
+        <div class="card hero">
+          <div class="hero-label">Simulated balance value</div>
+          <div class="balance-usd">$<span id="usdBalanceHero">0.00</span></div>
+          <div class="balance-tok"><span id="tokBalanceHero">0</span> USDT <span class="simulated-tag">simulated</span></div>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="send">
+        <div class="card">
+          <h2>Send tokens</h2>
+          <label for="sendTo">Recipient address</label>
+          <input id="sendTo" placeholder="0x..." />
+          <label for="sendAmount">Amount (USDT)</label>
+          <input id="sendAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
+          <button id="sendBtn" class="primary">Transfer</button>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="approve">
+        <div class="card">
+          <h2>Approve a spender</h2>
+          <label for="approveSpender">Spender address</label>
+          <input id="approveSpender" placeholder="0x..." />
+          <label for="approveAmount">Amount (USDT)</label>
+          <input id="approveAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
+          <button id="approveBtn" class="primary">Approve</button>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="tf">
+        <div class="card">
+          <h2>transferFrom (spend an allowance)</h2>
+          <label for="tfFrom">From address (owner who approved you)</label>
+          <input id="tfFrom" placeholder="0x..." />
+          <label for="tfTo">To address</label>
+          <input id="tfTo" placeholder="0x..." />
+          <label for="tfAmount">Amount (USDT)</label>
+          <input id="tfAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
+          <button id="tfBtn" class="primary">transferFrom</button>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="receive">
+        <div class="card">
+          <h2>Receive</h2>
+          <p class="muted">Share this address with someone sending you training USDT on the currently selected network.</p>
+          <div class="receive-addr" id="receiveAddr">Not connected</div>
+          <button id="copyReceiveBtn" class="primary" type="button">Copy address</button>
+        </div>
+      </section>
+
+      <div id="status"></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="abi.js"></script>
+  <script src="tron-config.js"></script>
+  <script src="tron-abi.js"></script>
+  <script src="dashboard-app.js"></script>
+</body>
+</html>

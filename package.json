@@ -1,0 +1,13 @@
+{
+  "name": "frontend-crypto",
+  "version": "1.0.0",
+  "description": "Training UI for the Sepolia Training USDT (USDT) token",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx --yes serve -p 5173 ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
