@@ -1,2 +1,1 @@
-// Point this at wherever backend/api is running.
-window.CLASSCHAIN_API_BASE = "http://localhost:4000";
+window.CLASSCHAIN_API_BASE = "https://training-usdt-trc-20-tron.onrender.com";
