@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <base href="/class/" />
+  <meta charset="utf-8" />
+  <title>ClassChain Token</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="class.css" />
+</head>
+<body>
+  <!-- Shown only when not signed in -->
+  <div class="wrap" id="loginGate">
+    <div class="brand">
+      <span class="mark">⛓</span>
+      <div>
+        <h1>ClassChain Token</h1>
+        <span class="badge">Closed classroom currency · No real value</span>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      ClassChain Token has <strong>no real monetary value</strong> and cannot be
+      transferred to any address outside this class — enforced by the smart
+      contract itself, not just this app.
+    </div>
+
+    <div class="card">
+      <h2>Sign in</h2>
+      <label for="username">Username</label>
+      <input id="username" autocomplete="username" />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" />
+      <button id="loginBtn" class="primary">Sign in</button>
+    </div>
+
+    <div id="loginStatus"></div>
+  </div>
+
+  <!-- Shown only once signed in -->
+  <div class="shell hidden" id="dashboard">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="mark">⛓</span>
+        <div>
+          <div class="brand-name">ClassChain Token</div>
+          <span class="badge">No real value</span>
+        </div>
+      </div>
+
+      <nav class="side-nav" id="sideNav"></nav>
+
+      <div class="sidebar-section">
+        <label>Signed in as</label>
+        <div style="font-weight:600;" id="whoUser"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <a href="../index.html" class="side-link">↔ Training USDT (self-custody)</a>
+        <a href="#" id="logoutBtn" class="side-link">⏻ Sign out</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar2">
+        <h1 id="viewTitle">Overview</h1>
+      </div>
+
+      <!-- Shared -->
+      <section class="view" data-view="overview">
+        <div class="disclaimer">
+          ClassChain Token has <strong>no real monetary value</strong>. Tokens can
+          only move between accounts your teacher created — the contract itself
+          rejects any transfer to an outside address.
+        </div>
+        <div class="stat-grid">
+          <div class="card stat-card">
+            <div class="stat-label">Ethereum balance</div>
+            <div class="stat-value"><span id="ethBal">—</span> CCT</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label">TRON balance</div>
+            <div class="stat-value"><span id="tronBal">—</span> CCT</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Student only -->
+      <section class="view hidden" data-view="send">
+        <div class="card">
+          <h2>Send to a classmate</h2>
+          <label for="toUsername">Recipient username</label>
+          <input id="toUsername" placeholder="e.g. jane" />
+          <label for="sendChain">Network</label>
+          <select id="sendChain">
+            <option value="ethereum">Ethereum</option>
+            <option value="tron">TRON</option>
+          </select>
+          <label for="sendAmount">Amount (CCT)</label>
+          <input id="sendAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
+          <button id="sendBtn" class="primary">Send</button>
+        </div>
+      </section>
+
+      <!-- Teacher only -->
+      <section class="view hidden" data-view="create">
+        <div class="card">
+          <h2>Create a student account</h2>
+          <label for="newUsername">Username</label>
+          <input id="newUsername" placeholder="e.g. jane" />
+          <label for="newPassword">Password</label>
+          <input id="newPassword" placeholder="Set an initial password" />
+          <button id="createBtn" class="primary">Create student</button>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="distribute">
+        <div class="card">
+          <h2>Distribute funds</h2>
+          <label for="distUsername">Student username</label>
+          <input id="distUsername" placeholder="e.g. jane" />
+          <label for="distChain">Network</label>
+          <select id="distChain">
+            <option value="ethereum">Ethereum</option>
+            <option value="tron">TRON</option>
+          </select>
+          <label for="distAmount">Amount (CCT)</label>
+          <input id="distAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
+          <button id="distBtn" class="primary">Distribute</button>
+        </div>
+      </section>
+
+      <section class="view hidden" data-view="roster">
+        <div class="card">
+          <table>
+            <thead><tr><th>Username</th><th>Ethereum address</th><th>TRON address</th></tr></thead>
+            <tbody id="roster"><tr><td colspan="3">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Shared -->
+      <section class="view hidden" data-view="market">
+        <p style="color:var(--muted); font-size:0.85rem;">
+          These are real prices from a live market API — shown only so you can see
+          what real trading data looks like. <strong>ClassChain Token is not listed
+          on any market</strong> and has no price of its own.
+        </p>
+        <div class="card">
+          <table>
+            <thead><tr><th>Asset</th><th>Price</th><th>24h</th></tr></thead>
+            <tbody id="marketReference"><tr><td colspan="3">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Student only -->
+      <section class="view hidden" data-view="practice">
+        <p style="color:var(--muted); font-size:0.85rem;">
+          A trading practice game with a made-up starting balance and simulated
+          price ticks. <strong>Nothing here is real</strong>, and nothing here
+          touches your actual ClassChain balance.
+        </p>
+        <div id="simulator"></div>
+      </section>
+
+      <div id="status"></div>
+    </main>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="config.js"></script>
+  <script src="market.js"></script>
+  <script src="simulator.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const NAV_BY_ROLE = {
+      teacher: [
+        { view: "overview", ico: "◆", label: "Overview" },
+        { view: "create", ico: "＋", label: "Create Student" },
+        { view: "distribute", ico: "↗", label: "Distribute" },
+        { view: "roster", ico: "☰", label: "Roster" },
+        { view: "market", ico: "▲", label: "Market Reference" },
+      ],
+      student: [
+        { view: "overview", ico: "◆", label: "Overview" },
+        { view: "send", ico: "↗", label: "Send" },
+        { view: "market", ico: "▲", label: "Market Reference" },
+        { view: "practice", ico: "🎮", label: "Practice Simulator" },
+      ],
+    };
+
+    function setStatus(msg, kind) {
+      const el = $("status");
+      el.textContent = msg;
+      el.className = kind || "";
+    }
+    function setLoginStatus(msg, kind) {
+      const el = $("loginStatus");
+      el.textContent = msg;
+      el.className = kind || "";
+    }
+
+    function buildNav(role) {
+      const nav = $("sideNav");
+      nav.innerHTML = "";
+      NAV_BY_ROLE[role].forEach((item, i) => {
+        const btn = document.createElement("button");
+        btn.className = "side-link" + (i === 0 ? " active" : "");
+        btn.type = "button";
+        btn.dataset.view = item.view;
+        btn.innerHTML = `<span class="side-ico">${item.ico}</span> ${item.label}`;
+        btn.addEventListener("click", () => {
+          nav.querySelectorAll(".side-link").forEach((l) => l.classList.remove("active"));
+          btn.classList.add("active");
+          document.querySelectorAll(".main .view").forEach((view) => {
+            view.classList.toggle("hidden", view.dataset.view !== item.view);
+          });
+          $("viewTitle").textContent = item.label;
+        });
+        nav.appendChild(btn);
+      });
+      // Show only the first view initially; hide everything else.
+      document.querySelectorAll(".main .view").forEach((view) => {
+        view.classList.toggle("hidden", view.dataset.view !== NAV_BY_ROLE[role][0].view);
+      });
+    }
+
+    async function refreshOverview() {
+      try {
+        const me = await ClassChainAPI.me();
+        $("ethBal").textContent = me.balances.ethereum;
+        $("tronBal").textContent = me.balances.tron;
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
+    }
+
+    async function refreshRoster() {
+      try {
+        const students = await ClassChainAPI.listStudents();
+        $("roster").innerHTML = students.length
+          ? students.map((s) => `<tr>
+              <td>${s.username}</td>
+              <td class="addr">${s.eth_address}</td>
+              <td class="addr">${s.tron_address}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="3">No students yet.</td></tr>`;
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
+    }
+
+    function wireActions(role) {
+      if (role === "student") {
+        $("sendBtn").addEventListener("click", async () => {
+          const toUsername = $("toUsername").value.trim();
+          const chain = $("sendChain").value;
+          const amount = $("sendAmount").value.trim();
+          if (!toUsername || !amount) return setStatus("Enter a recipient and amount.", "error");
+          try {
+            setStatus("Sending...");
+            const { txHash } = await ClassChainAPI.transfer(toUsername, chain, amount);
+            setStatus(`Sent! ${txHash || ""}`, "ok");
+            await refreshOverview();
+          } catch (err) {
+            setStatus(err.message, "error");
+          }
+        });
+        renderSimulator();
+        setInterval(renderSimulator, 4000);
+      }
+
+      if (role === "teacher") {
+        $("createBtn").addEventListener("click", async () => {
+          const username = $("newUsername").value.trim();
+          const password = $("newPassword").value;
+          if (!username || !password) return setStatus("Enter a username and password.", "error");
+          try {
+            setStatus("Creating student and registering wallets on-chain (this can take ~30s)...");
+            await ClassChainAPI.createStudent(username, password);
+            setStatus(`Student "${username}" created.`, "ok");
+            $("newUsername").value = "";
+            $("newPassword").value = "";
+            await refreshRoster();
+          } catch (err) {
+            setStatus(err.message, "error");
+          }
+        });
+
+        $("distBtn").addEventListener("click", async () => {
+          const username = $("distUsername").value.trim();
+          const chain = $("distChain").value;
+          const amount = $("distAmount").value.trim();
+          if (!username || !amount) return setStatus("Enter a username and amount.", "error");
+          try {
+            setStatus("Distributing...");
+            const { txHash } = await ClassChainAPI.distribute(username, chain, amount);
+            setStatus(`Distributed! ${txHash || ""}`, "ok");
+          } catch (err) {
+            setStatus(err.message, "error");
+          }
+        });
+
+        refreshRoster();
+      }
+    }
+
+    function showDashboard(role) {
+      $("loginGate").classList.add("hidden");
+      $("dashboard").classList.remove("hidden");
+      $("whoUser").textContent = ClassChainAPI.username();
+      buildNav(role);
+      wireActions(role);
+      refreshOverview();
+      loadMarketReference();
+      setInterval(loadMarketReference, 30000);
+    }
+
+    $("logoutBtn").addEventListener("click", (e) => {
+      e.preventDefault();
+      ClassChainAPI.clearSession();
+      window.location.reload();
+    });
+
+    async function login() {
+      const username = $("username").value.trim();
+      const password = $("password").value;
+      if (!username || !password) return setLoginStatus("Enter a username and password.", "error");
+      try {
+        setLoginStatus("Signing in...");
+        const { token, role } = await ClassChainAPI.login(username, password);
+        ClassChainAPI.setSession(token, username, role);
+        showDashboard(role);
+      } catch (err) {
+        setLoginStatus(err.message, "error");
+      }
+    }
+    $("loginBtn").addEventListener("click", login);
+    $("password").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+
+    // Already signed in? Skip the login gate entirely.
+    if (ClassChainAPI.token()) {
+      showDashboard(ClassChainAPI.role());
+    }
+  </script>
+</body>
+</html>
