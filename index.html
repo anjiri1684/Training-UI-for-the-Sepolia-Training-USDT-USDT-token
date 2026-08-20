@@ -125,6 +125,14 @@
           <label for="sendAmount">Amount (USDT)</label>
           <input id="sendAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
           <button id="sendBtn" class="primary">Transfer</button>
+          <p class="section-desc" style="margin-top:12px;">
+            <strong>Using TronLink?</strong> Its confirmation popup doesn't
+            recognize this practice token yet, so it may show a large raw
+            number (like <code>10,000,000</code>) instead of
+            <code>10</code>, sometimes with an "undefined" label. That's a
+            display quirk on TronLink's side only — the amount you typed
+            above is what actually gets sent. It's safe to click Sign.
+          </p>
         </div>
       </section>
 
@@ -142,6 +150,14 @@
           <label for="approveAmount">Amount (USDT)</label>
           <input id="approveAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
           <button id="approveBtn" class="primary">Approve</button>
+          <p class="section-desc" style="margin-top:12px;">
+            <strong>Using TronLink?</strong> Its confirmation popup doesn't
+            recognize this practice token yet, so it may show a large raw
+            number instead of the amount you typed, sometimes with an
+            "undefined" label. That's a display quirk on TronLink's side
+            only — the amount above is what actually gets approved. It's
+            safe to click Sign.
+          </p>
         </div>
       </section>
 
