@@ -21,7 +21,25 @@ const SIM_START_BALANCE = 10000;
 
 function simState() {
   const raw = localStorage.getItem("cc_sim_state");
-  if (raw) return JSON.parse(raw);
+  if (raw) {
+    const state = JSON.parse(raw);
+    // Backfill any assets added after this state was first saved (e.g. an
+    // older browser session predating BNB/SOL/XRP/DOGE) so lookups never
+    // hit undefined.
+    let changed = false;
+    SIM_ASSETS.forEach((a) => {
+      if (!(a.key in state.prices)) {
+        state.prices[a.key] = a.price;
+        changed = true;
+      }
+      if (!(a.key in state.holdings)) {
+        state.holdings[a.key] = 0;
+        changed = true;
+      }
+    });
+    if (changed) simSave(state);
+    return state;
+  }
   const fresh = {
     cash: SIM_START_BALANCE,
     prices: Object.fromEntries(SIM_ASSETS.map((a) => [a.key, a.price])),
