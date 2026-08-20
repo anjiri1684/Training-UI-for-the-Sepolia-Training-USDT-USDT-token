@@ -354,6 +354,15 @@ function setupChainTabs() {
       if (current.connectionMode === "wallet") {
         const btnLabel = current.name === "ethereum" ? "Connect MetaMask" : "Connect TronLink";
         setStatus(`Click "${btnLabel}" to get started.`, "ok");
+        // Try to silently restore an already-authorized connection for
+        // this chain instead of always requiring a fresh manual click.
+        const connected = await current.trySilentConnect();
+        if (connected) {
+          const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON Nile (real testnet)";
+          $("connectedAddr").textContent = `${current.name === "ethereum" ? "MetaMask" : "TronLink"}: ${current.address}`;
+          setStatus(`Reconnected to ${network} as ${current.address}.`, "ok");
+          await refreshBalance();
+        }
       } else {
         await connectSelectedAccount();
       }
