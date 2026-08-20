@@ -70,8 +70,39 @@ body { padding: 0; }
   .shell { flex-direction: column; }
   .sidebar {
     width: 100%; height: auto; position: static;
-    flex-direction: column; gap: 14px; padding: 14px 16px;
+    flex-direction: column; gap: 12px; padding: 14px 16px;
     border-right: none; border-bottom: 1px solid var(--border);
   }
+
+  /* Too many nav items for a fixed bottom bar here (5-7 depending on
+     role) — a horizontally scrollable strip fits any count cleanly. */
+  .side-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 4px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .side-nav .side-link {
+    flex-shrink: 0;
+    width: auto;
+    white-space: nowrap;
+    font-size: 0.8rem;
+  }
+
+  .sidebar-section, .sidebar-foot { order: 3; }
+  .sidebar-foot { flex-direction: row; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+  .sidebar-foot .side-link { width: auto; padding: 6px 4px; }
+
   .main { padding: 18px 16px 40px; }
+
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+@media (max-width: 420px) {
+  .card { padding: 16px; }
+  button.primary { font-size: 0.92rem; }
 }

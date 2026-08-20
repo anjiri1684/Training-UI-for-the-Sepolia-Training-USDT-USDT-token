@@ -155,12 +155,26 @@
       <section class="view hidden" data-view="roster">
         <p class="section-desc" style="margin-bottom:14px;">
           Every student account you've created, with their on-chain addresses
-          on both networks.
+          on both networks. Reset a forgotten password, or remove a student
+          entirely (revokes their on-chain membership — irreversible).
         </p>
         <div class="card">
           <table>
-            <thead><tr><th>Username</th><th>Ethereum address</th><th>TRON address</th></tr></thead>
-            <tbody id="roster"><tr><td colspan="3">Loading...</td></tr></tbody>
+            <thead><tr><th>Username</th><th>Ethereum address</th><th>TRON address</th><th></th></tr></thead>
+            <tbody id="roster"><tr><td colspan="4">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Shared -->
+      <section class="view hidden" data-view="history">
+        <p class="section-desc" style="margin-bottom:14px;" id="historyDesc">
+          Every mint and transfer involving your account.
+        </p>
+        <div class="card">
+          <table>
+            <thead><tr><th>When</th><th>Kind</th><th>Chain</th><th>From</th><th>To</th><th>Amount</th></tr></thead>
+            <tbody id="historyBody"><tr><td colspan="6">Loading...</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -203,6 +217,20 @@
     </div>
   </div>
 
+  <!-- Reusable confirm/prompt modal — replaces browser confirm()/prompt() -->
+  <div class="modal-overlay hidden" id="confirmOverlay">
+    <div class="modal-box" id="confirmBox">
+      <div class="modal-icon" id="confirmIcon">?</div>
+      <h3 id="confirmTitle"></h3>
+      <p id="confirmMessage"></p>
+      <input id="confirmInput" class="hidden" />
+      <div style="display:flex; gap:10px;">
+        <button id="confirmCancelBtn" type="button" style="flex:1;">Cancel</button>
+        <button id="confirmOkBtn" class="primary" type="button" style="flex:1;">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script src="api.js"></script>
   <script src="config.js"></script>
   <script src="market.js"></script>
@@ -217,11 +245,13 @@
         { view: "distribute", ico: "↗", label: "Distribute" },
         { view: "send", ico: "⇄", label: "Send" },
         { view: "roster", ico: "☰", label: "Roster" },
+        { view: "history", ico: "🕘", label: "History" },
         { view: "market", ico: "▲", label: "Market Reference" },
       ],
       student: [
         { view: "overview", ico: "◆", label: "Overview" },
         { view: "send", ico: "⇄", label: "Send" },
+        { view: "history", ico: "🕘", label: "History" },
         { view: "market", ico: "▲", label: "Market Reference" },
         { view: "practice", ico: "🎮", label: "Practice Simulator" },
       ],
@@ -252,6 +282,56 @@
     $("modalOverlay").addEventListener("click", (e) => {
       if (e.target === $("modalOverlay")) hideModal();
     });
+
+    // Reusable replacements for window.confirm()/prompt() — same modal
+    // styling as the rest of the app instead of a jarring browser dialog.
+    function showConfirm(title, message) {
+      return new Promise((resolve) => {
+        $("confirmTitle").textContent = title;
+        $("confirmMessage").textContent = message;
+        $("confirmInput").classList.add("hidden");
+        $("confirmOkBtn").textContent = "Confirm";
+        $("confirmOverlay").classList.remove("hidden");
+
+        const cleanup = (result) => {
+          $("confirmOverlay").classList.add("hidden");
+          $("confirmOkBtn").removeEventListener("click", onOk);
+          $("confirmCancelBtn").removeEventListener("click", onCancel);
+          resolve(result);
+        };
+        const onOk = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+        $("confirmOkBtn").addEventListener("click", onOk);
+        $("confirmCancelBtn").addEventListener("click", onCancel);
+      });
+    }
+
+    function showPrompt(title, message, placeholder) {
+      return new Promise((resolve) => {
+        $("confirmTitle").textContent = title;
+        $("confirmMessage").textContent = message;
+        $("confirmInput").classList.remove("hidden");
+        $("confirmInput").value = "";
+        $("confirmInput").placeholder = placeholder || "";
+        $("confirmOkBtn").textContent = "Submit";
+        $("confirmOverlay").classList.remove("hidden");
+        setTimeout(() => $("confirmInput").focus(), 0);
+
+        const cleanup = (result) => {
+          $("confirmOverlay").classList.add("hidden");
+          $("confirmOkBtn").removeEventListener("click", onOk);
+          $("confirmCancelBtn").removeEventListener("click", onCancel);
+          $("confirmInput").removeEventListener("keydown", onKeydown);
+          resolve(result);
+        };
+        const onOk = () => cleanup($("confirmInput").value || null);
+        const onCancel = () => cleanup(null);
+        const onKeydown = (e) => { if (e.key === "Enter") onOk(); };
+        $("confirmOkBtn").addEventListener("click", onOk);
+        $("confirmCancelBtn").addEventListener("click", onCancel);
+        $("confirmInput").addEventListener("keydown", onKeydown);
+      });
+    }
 
     async function withLoading(btn, fn) {
       btn.classList.add("is-loading");
@@ -307,8 +387,44 @@
               <td>${s.username}</td>
               <td class="addr">${s.eth_address}</td>
               <td class="addr">${s.tron_address}</td>
+              <td style="white-space:nowrap;">
+                <button type="button" class="reset-pw-btn" data-username="${s.username}">Reset password</button>
+                <button type="button" class="remove-student-btn" data-username="${s.username}" style="color:var(--danger); border-color:var(--danger);">Remove</button>
+              </td>
             </tr>`).join("")
-          : `<tr><td colspan="3">No students yet.</td></tr>`;
+          : `<tr><td colspan="4">No students yet.</td></tr>`;
+      } catch (err) {
+        setStatus(err.message, "error");
+      }
+    }
+
+    function timeAgo(iso) {
+      const diffMs = Date.now() - new Date(iso).getTime();
+      const mins = Math.floor(diffMs / 60000);
+      if (mins < 1) return "just now";
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      return `${Math.floor(hrs / 24)}d ago`;
+    }
+
+    async function refreshHistory(role) {
+      try {
+        const rows = role === "teacher" ? await ClassChainAPI.adminHistory() : await ClassChainAPI.history();
+        $("historyDesc").textContent =
+          role === "teacher"
+            ? "Every mint and transfer across the whole class."
+            : "Every mint and transfer involving your account.";
+        $("historyBody").innerHTML = rows.length
+          ? rows.map((r) => `<tr>
+              <td>${timeAgo(r.created_at)}</td>
+              <td>${r.kind === "mint" ? "Distribute (mint)" : "Send"}</td>
+              <td>${r.chain === "ethereum" ? "Ethereum" : "TRON"}</td>
+              <td>${r.from_username || "—"}</td>
+              <td>${r.to_username || "—"}</td>
+              <td>${r.amount} CCT</td>
+            </tr>`).join("")
+          : `<tr><td colspan="6">No activity yet.</td></tr>`;
       } catch (err) {
         setStatus(err.message, "error");
       }
@@ -324,6 +440,11 @@
           if (!toUsername || !amount) {
             return showModal("error", "Can't send", "Enter a recipient username and amount.");
           }
+          const ok = await showConfirm(
+            "Confirm send",
+            `Send ${amount} CCT to "${toUsername}" on ${chain === "ethereum" ? "Ethereum" : "TRON"}? This can't be undone.`
+          );
+          if (!ok) return;
           try {
             const { txHash } = await ClassChainAPI.transfer(toUsername, chain, amount);
             showModal("success", "Sent", `Confirmed on-chain.\n${txHash || ""}`);
@@ -338,7 +459,7 @@
 
       if (role === "student") {
         renderSimulator();
-        setInterval(renderSimulator, 4000);
+        setInterval(tickSimulatorPrices, 4000);
       }
 
       if (role === "teacher") {
@@ -372,6 +493,11 @@
             if (!username || !amount) {
               return showModal("error", "Can't distribute", "Enter a student username and amount.");
             }
+            const ok = await showConfirm(
+              "Confirm distribution",
+              `Mint ${amount} CCT to "${username}" on ${chain === "ethereum" ? "Ethereum" : "TRON"}?`
+            );
+            if (!ok) return;
             try {
               const { txHash } = await ClassChainAPI.distribute(username, chain, amount);
               showModal("success", "Distributed", `Confirmed on-chain.\n${txHash || ""}`);
@@ -382,8 +508,47 @@
           })
         );
 
+        $("roster").addEventListener("click", async (e) => {
+          const resetBtn = e.target.closest(".reset-pw-btn");
+          const removeBtn = e.target.closest(".remove-student-btn");
+
+          if (resetBtn) {
+            const username = resetBtn.dataset.username;
+            const newPassword = await showPrompt("Reset password", `New password for "${username}":`, "New password");
+            if (!newPassword) return;
+            await withLoading(resetBtn, async () => {
+              try {
+                await ClassChainAPI.resetStudentPassword(username, newPassword);
+                showModal("success", "Password reset", `"${username}" can now sign in with the new password.`);
+              } catch (err) {
+                showModal("error", "Reset failed", err.message);
+              }
+            });
+          }
+
+          if (removeBtn) {
+            const username = removeBtn.dataset.username;
+            const ok = await showConfirm(
+              "Remove student",
+              `Remove "${username}"? This revokes their on-chain membership and deletes their account. Can't be undone.`
+            );
+            if (!ok) return;
+            await withLoading(removeBtn, async () => {
+              try {
+                await ClassChainAPI.deleteStudent(username);
+                showModal("success", "Student removed", `"${username}" has been removed from the class.`);
+                await refreshRoster();
+              } catch (err) {
+                showModal("error", "Remove failed", err.message);
+              }
+            });
+          }
+        });
+
         refreshRoster();
       }
+
+      refreshHistory(role);
     }
 
     function showDashboard(role) {

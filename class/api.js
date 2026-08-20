@@ -56,16 +56,21 @@ const ClassChainAPI = {
       body: JSON.stringify({ username, chain, amount }),
     });
   },
+  history() {
+    return this.request("/api/wallet/history");
+  },
+  adminHistory() {
+    return this.request("/api/admin/history");
+  },
+  resetStudentPassword(username, password) {
+    return this.request(`/api/admin/students/${encodeURIComponent(username)}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  },
+  deleteStudent(username) {
+    return this.request(`/api/admin/students/${encodeURIComponent(username)}`, {
+      method: "DELETE",
+    });
+  },
 };
-
-function requireLogin(expectedRole) {
-  if (!ClassChainAPI.token()) {
-    window.location.href = "index.html";
-    return false;
-  }
-  if (expectedRole && ClassChainAPI.role() !== expectedRole) {
-    window.location.href = ClassChainAPI.role() === "teacher" ? "teacher.html" : "student.html";
-    return false;
-  }
-  return true;
-}
