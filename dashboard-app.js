@@ -208,7 +208,35 @@ const tronAdapter = {
       window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS
     );
     this.decimals = Number(await this.contract.decimals().call());
+    await this.registerTokenWithWallet();
     return { label: "TronLink", address: this.address };
+  },
+
+  // TronLink's own Send confirmation screen reads decimals/symbol from
+  // tokens it has explicitly added to its asset list — it does not trust
+  // whatever a dApp's ABI claims (a phishing-prevention measure), so an
+  // unregistered token shows as raw units with an "undefined" symbol.
+  // wallet_watchAsset prompts the user once to add this token so future
+  // confirmations render as "10.000000 TUSDT" instead. Best-effort: older
+  // TronLink versions or a user declining the prompt just fall back to the
+  // raw-unit display, so failures here are silently ignored.
+  async registerTokenWithWallet() {
+    try {
+      const symbol = await this.contract.symbol().call();
+      await this.tronWeb.request({
+        method: "wallet_watchAsset",
+        params: {
+          type: "trc20",
+          options: {
+            address: window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS,
+            symbol,
+            decimals: this.decimals,
+          },
+        },
+      });
+    } catch (_err) {
+      // Not supported, already added, or user dismissed the prompt — fine.
+    }
   },
 
   async balance() {
