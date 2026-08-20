@@ -72,6 +72,10 @@
       </header>
 
       <section class="view" data-view="overview">
+        <p class="section-desc" style="margin-bottom:14px;">
+          A snapshot of your connected wallet: how much training USDT you hold,
+          the token's total supply, and the contract it lives on.
+        </p>
         <details class="disclaimer">
           <summary>What is this? (read before class)</summary>
           <p>
@@ -110,6 +114,10 @@
       </section>
 
       <section class="view hidden" data-view="send">
+        <p class="section-desc" style="margin-bottom:14px;">
+          A direct, ordinary wallet-to-wallet transfer — move some of your own
+          balance straight to any address on the selected network.
+        </p>
         <div class="card">
           <h2>Send tokens</h2>
           <label for="sendTo">Recipient address</label>
@@ -121,6 +129,12 @@
       </section>
 
       <section class="view hidden" data-view="approve">
+        <p class="section-desc" style="margin-bottom:14px;">
+          Authorize another address to spend up to a set amount of <em>your</em>
+          balance on your behalf — the same pattern real apps like exchanges use
+          before they can move tokens for you. This step alone doesn't move
+          anything; it just grants permission.
+        </p>
         <div class="card">
           <h2>Approve a spender</h2>
           <label for="approveSpender">Spender address</label>
@@ -132,6 +146,12 @@
       </section>
 
       <section class="view hidden" data-view="tf">
+        <p class="section-desc" style="margin-bottom:14px;">
+          Spend an allowance someone approved for you: pull tokens out of the
+          owner's balance (up to what they approved) and send them anywhere.
+          You must be signed in as the approved spender, not the owner, for
+          this to succeed.
+        </p>
         <div class="card">
           <h2>transferFrom (spend an allowance)</h2>
           <label for="tfFrom">From address (owner who approved you)</label>
@@ -145,6 +165,10 @@
       </section>
 
       <section class="view hidden" data-view="receive">
+        <p class="section-desc" style="margin-bottom:14px;">
+          Your own address on the selected network — share it with anyone who
+          wants to send you training USDT.
+        </p>
         <div class="card">
           <h2>Receive</h2>
           <p class="muted">Share this address with someone sending you training USDT on the currently selected network.</p>
@@ -155,6 +179,15 @@
 
       <div id="status"></div>
     </main>
+  </div>
+
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal-box" id="modalBox">
+      <div class="modal-icon" id="modalIcon"></div>
+      <h3 id="modalTitle"></h3>
+      <p id="modalMessage"></p>
+      <button id="modalCloseBtn" class="primary" type="button">OK</button>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>

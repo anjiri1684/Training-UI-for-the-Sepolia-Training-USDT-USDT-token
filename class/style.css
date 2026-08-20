@@ -122,3 +122,54 @@ tr:last-child td { border-bottom: none; }
 
 a.link-btn { color: var(--muted); font-size: 0.82rem; text-decoration: none; }
 a.link-btn:hover { color: var(--accent); }
+
+/* Section title + one-line description, used at the top of every view */
+.section-head { margin-bottom: 16px; }
+.section-head h1, .section-head h2 { margin: 0 0 4px; }
+.section-desc { color: var(--muted); font-size: 0.86rem; margin: 0; max-width: 60ch; }
+
+/* Button loading state: swap in a spinner, keep the button's width stable */
+button.is-loading { position: relative; color: transparent !important; pointer-events: none; }
+button.is-loading::after {
+  content: "";
+  position: absolute; top: 50%; left: 50%;
+  width: 16px; height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+  color: var(--text);
+}
+button.primary.is-loading::after { color: var(--accent-ink); }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* Success / error modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(4, 6, 10, 0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal-overlay.hidden { display: none; }
+.modal-box {
+  background: linear-gradient(180deg, var(--card-2), var(--card));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+.modal-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center;
+  margin: 0 auto 14px;
+  font-size: 1.3rem; font-weight: 800;
+}
+.modal-box.success .modal-icon { background: rgba(43, 214, 160, 0.15); color: var(--accent); }
+.modal-box.error .modal-icon { background: rgba(255, 107, 111, 0.15); color: var(--danger); }
+.modal-box h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.modal-box p { margin: 0 0 18px; color: var(--muted); font-size: 0.88rem; word-break: break-word; white-space: pre-line; }
+.modal-box button { width: 100%; }

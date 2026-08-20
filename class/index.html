@@ -68,6 +68,10 @@
 
       <!-- Shared -->
       <section class="view" data-view="overview">
+        <p class="section-desc" style="margin-bottom:14px;">
+          A snapshot of your account: how much ClassChain Token you hold on
+          each network right now.
+        </p>
         <div class="disclaimer">
           ClassChain Token has <strong>no real monetary value</strong>. Tokens can
           only move between accounts your teacher created — the contract itself
@@ -85,10 +89,16 @@
         </div>
       </section>
 
-      <!-- Student only -->
+      <!-- Shared: both roles can send peer-to-peer, to anyone else in the class -->
       <section class="view hidden" data-view="send">
+        <p class="section-desc" style="margin-bottom:14px;">
+          An ordinary peer-to-peer transfer of tokens you already hold, to any
+          other account in this class — teacher or student. This moves your
+          own balance; it's different from "Distribute," which creates new
+          tokens.
+        </p>
         <div class="card">
-          <h2>Send to a classmate</h2>
+          <h2>Send to someone in the class</h2>
           <label for="toUsername">Recipient username</label>
           <input id="toUsername" placeholder="e.g. jane" />
           <label for="sendChain">Network</label>
@@ -104,6 +114,12 @@
 
       <!-- Teacher only -->
       <section class="view hidden" data-view="create">
+        <p class="section-desc" style="margin-bottom:14px;">
+          Adds a new student to the class: generates their wallets on both
+          networks and registers those addresses on-chain, so they're allowed
+          to hold and receive ClassChain Token. Share the username/password
+          you set here with the student directly.
+        </p>
         <div class="card">
           <h2>Create a student account</h2>
           <label for="newUsername">Username</label>
@@ -115,6 +131,12 @@
       </section>
 
       <section class="view hidden" data-view="distribute">
+        <p class="section-desc" style="margin-bottom:14px;">
+          Mints brand-new tokens directly into a student's wallet — this is
+          how funds enter the class in the first place. It doesn't draw from
+          your own balance, which is why your balance can stay at 0 and this
+          still works.
+        </p>
         <div class="card">
           <h2>Distribute funds</h2>
           <label for="distUsername">Student username</label>
@@ -131,6 +153,10 @@
       </section>
 
       <section class="view hidden" data-view="roster">
+        <p class="section-desc" style="margin-bottom:14px;">
+          Every student account you've created, with their on-chain addresses
+          on both networks.
+        </p>
         <div class="card">
           <table>
             <thead><tr><th>Username</th><th>Ethereum address</th><th>TRON address</th></tr></thead>
@@ -141,7 +167,7 @@
 
       <!-- Shared -->
       <section class="view hidden" data-view="market">
-        <p style="color:var(--muted); font-size:0.85rem;">
+        <p class="section-desc" style="margin-bottom:14px;">
           These are real prices from a live market API — shown only so you can see
           what real trading data looks like. <strong>ClassChain Token is not listed
           on any market</strong> and has no price of its own.
@@ -156,7 +182,7 @@
 
       <!-- Student only -->
       <section class="view hidden" data-view="practice">
-        <p style="color:var(--muted); font-size:0.85rem;">
+        <p class="section-desc" style="margin-bottom:14px;">
           A trading practice game with a made-up starting balance and simulated
           price ticks. <strong>Nothing here is real</strong>, and nothing here
           touches your actual ClassChain balance.
@@ -166,6 +192,15 @@
 
       <div id="status"></div>
     </main>
+  </div>
+
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal-box" id="modalBox">
+      <div class="modal-icon" id="modalIcon"></div>
+      <h3 id="modalTitle"></h3>
+      <p id="modalMessage"></p>
+      <button id="modalCloseBtn" class="primary" type="button">OK</button>
+    </div>
   </div>
 
   <script src="api.js"></script>
@@ -180,12 +215,13 @@
         { view: "overview", ico: "◆", label: "Overview" },
         { view: "create", ico: "＋", label: "Create Student" },
         { view: "distribute", ico: "↗", label: "Distribute" },
+        { view: "send", ico: "⇄", label: "Send" },
         { view: "roster", ico: "☰", label: "Roster" },
         { view: "market", ico: "▲", label: "Market Reference" },
       ],
       student: [
         { view: "overview", ico: "◆", label: "Overview" },
-        { view: "send", ico: "↗", label: "Send" },
+        { view: "send", ico: "⇄", label: "Send" },
         { view: "market", ico: "▲", label: "Market Reference" },
         { view: "practice", ico: "🎮", label: "Practice Simulator" },
       ],
@@ -200,6 +236,32 @@
       const el = $("loginStatus");
       el.textContent = msg;
       el.className = kind || "";
+    }
+
+    function showModal(kind, title, message) {
+      $("modalBox").className = "modal-box " + kind;
+      $("modalIcon").textContent = kind === "success" ? "✓" : "!";
+      $("modalTitle").textContent = title;
+      $("modalMessage").textContent = message;
+      $("modalOverlay").classList.remove("hidden");
+    }
+    function hideModal() {
+      $("modalOverlay").classList.add("hidden");
+    }
+    $("modalCloseBtn").addEventListener("click", hideModal);
+    $("modalOverlay").addEventListener("click", (e) => {
+      if (e.target === $("modalOverlay")) hideModal();
+    });
+
+    async function withLoading(btn, fn) {
+      btn.classList.add("is-loading");
+      btn.disabled = true;
+      try {
+        await fn();
+      } finally {
+        btn.classList.remove("is-loading");
+        btn.disabled = false;
+      }
     }
 
     function buildNav(role) {
@@ -253,55 +315,72 @@
     }
 
     function wireActions(role) {
-      if (role === "student") {
-        $("sendBtn").addEventListener("click", async () => {
+      // Send is available to both roles — an ordinary peer transfer.
+      $("sendBtn").addEventListener("click", () =>
+        withLoading($("sendBtn"), async () => {
           const toUsername = $("toUsername").value.trim();
           const chain = $("sendChain").value;
           const amount = $("sendAmount").value.trim();
-          if (!toUsername || !amount) return setStatus("Enter a recipient and amount.", "error");
+          if (!toUsername || !amount) {
+            return showModal("error", "Can't send", "Enter a recipient username and amount.");
+          }
           try {
-            setStatus("Sending...");
             const { txHash } = await ClassChainAPI.transfer(toUsername, chain, amount);
-            setStatus(`Sent! ${txHash || ""}`, "ok");
+            showModal("success", "Sent", `Confirmed on-chain.\n${txHash || ""}`);
+            $("toUsername").value = "";
+            $("sendAmount").value = "";
             await refreshOverview();
           } catch (err) {
-            setStatus(err.message, "error");
+            showModal("error", "Send failed", err.message);
           }
-        });
+        })
+      );
+
+      if (role === "student") {
         renderSimulator();
         setInterval(renderSimulator, 4000);
       }
 
       if (role === "teacher") {
-        $("createBtn").addEventListener("click", async () => {
-          const username = $("newUsername").value.trim();
-          const password = $("newPassword").value;
-          if (!username || !password) return setStatus("Enter a username and password.", "error");
-          try {
-            setStatus("Creating student and registering wallets on-chain (this can take ~30s)...");
-            await ClassChainAPI.createStudent(username, password);
-            setStatus(`Student "${username}" created.`, "ok");
-            $("newUsername").value = "";
-            $("newPassword").value = "";
-            await refreshRoster();
-          } catch (err) {
-            setStatus(err.message, "error");
-          }
-        });
+        $("createBtn").addEventListener("click", () =>
+          withLoading($("createBtn"), async () => {
+            const username = $("newUsername").value.trim();
+            const password = $("newPassword").value;
+            if (!username || !password) {
+              return showModal("error", "Can't create student", "Enter a username and password.");
+            }
+            try {
+              setStatus("Registering wallets on-chain (this can take ~30s)...");
+              await ClassChainAPI.createStudent(username, password);
+              setStatus("");
+              showModal("success", "Student created", `"${username}" can now sign in with the password you set.`);
+              $("newUsername").value = "";
+              $("newPassword").value = "";
+              await refreshRoster();
+            } catch (err) {
+              setStatus("");
+              showModal("error", "Couldn't create student", err.message);
+            }
+          })
+        );
 
-        $("distBtn").addEventListener("click", async () => {
-          const username = $("distUsername").value.trim();
-          const chain = $("distChain").value;
-          const amount = $("distAmount").value.trim();
-          if (!username || !amount) return setStatus("Enter a username and amount.", "error");
-          try {
-            setStatus("Distributing...");
-            const { txHash } = await ClassChainAPI.distribute(username, chain, amount);
-            setStatus(`Distributed! ${txHash || ""}`, "ok");
-          } catch (err) {
-            setStatus(err.message, "error");
-          }
-        });
+        $("distBtn").addEventListener("click", () =>
+          withLoading($("distBtn"), async () => {
+            const username = $("distUsername").value.trim();
+            const chain = $("distChain").value;
+            const amount = $("distAmount").value.trim();
+            if (!username || !amount) {
+              return showModal("error", "Can't distribute", "Enter a student username and amount.");
+            }
+            try {
+              const { txHash } = await ClassChainAPI.distribute(username, chain, amount);
+              showModal("success", "Distributed", `Confirmed on-chain.\n${txHash || ""}`);
+              $("distAmount").value = "";
+            } catch (err) {
+              showModal("error", "Distribute failed", err.message);
+            }
+          })
+        );
 
         refreshRoster();
       }
@@ -328,14 +407,16 @@
       const username = $("username").value.trim();
       const password = $("password").value;
       if (!username || !password) return setLoginStatus("Enter a username and password.", "error");
-      try {
-        setLoginStatus("Signing in...");
-        const { token, role } = await ClassChainAPI.login(username, password);
-        ClassChainAPI.setSession(token, username, role);
-        showDashboard(role);
-      } catch (err) {
-        setLoginStatus(err.message, "error");
-      }
+      await withLoading($("loginBtn"), async () => {
+        try {
+          setLoginStatus("Signing in...");
+          const { token, role } = await ClassChainAPI.login(username, password);
+          ClassChainAPI.setSession(token, username, role);
+          showDashboard(role);
+        } catch (err) {
+          setLoginStatus(err.message, "error");
+        }
+      });
     }
     $("loginBtn").addEventListener("click", login);
     $("password").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });

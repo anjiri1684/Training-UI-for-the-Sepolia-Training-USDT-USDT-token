@@ -6,6 +6,33 @@ function setStatus(msg, kind) {
   statusEl.className = kind || "";
 }
 
+function showModal(kind, title, message) {
+  $("modalBox").className = "modal-box " + kind;
+  $("modalIcon").textContent = kind === "success" ? "✓" : "!";
+  $("modalTitle").textContent = title;
+  $("modalMessage").textContent = message;
+  $("modalOverlay").classList.remove("hidden");
+}
+function hideModal() {
+  $("modalOverlay").classList.add("hidden");
+}
+$("modalCloseBtn").addEventListener("click", hideModal);
+$("modalOverlay").addEventListener("click", (e) => {
+  if (e.target === $("modalOverlay")) hideModal();
+});
+
+/** Disables a button and shows a spinner for the duration of an async action. */
+async function withLoading(btn, fn) {
+  btn.classList.add("is-loading");
+  btn.disabled = true;
+  try {
+    await fn();
+  } finally {
+    btn.classList.remove("is-loading");
+    btn.disabled = false;
+  }
+}
+
 function toUnits(amountStr, dec) {
   const [whole, frac = ""] = amountStr.split(".");
   const fracPadded = (frac + "0".repeat(dec)).slice(0, dec);
@@ -290,33 +317,43 @@ async function sendTransfer() {
   const to = $("sendTo").value.trim();
   const amount = $("sendAmount").value.trim();
   if (!current.isAddress(to) || !amount) {
-    return setStatus("Enter a valid recipient address and amount.", "error");
+    return showModal("error", "Can't send", "Enter a valid recipient address and amount.");
   }
-  try {
-    setStatus("Sending simulated transaction...");
-    const ref = await current.transfer(to, amount);
-    setStatus(`Transfer confirmed (local sim): ${ref}`, "ok");
-    await refreshBalance();
-  } catch (err) {
-    console.error(err);
-    setStatus(err.reason || err.message || "Transfer failed.", "error");
-  }
+  await withLoading($("sendBtn"), async () => {
+    try {
+      setStatus("Waiting for confirmation in your wallet...");
+      const ref = await current.transfer(to, amount);
+      setStatus("");
+      showModal("success", "Transfer sent", `Confirmed on-chain.\n${ref}`);
+      $("sendTo").value = "";
+      $("sendAmount").value = "";
+      await refreshBalance();
+    } catch (err) {
+      console.error(err);
+      setStatus("");
+      showModal("error", "Transfer failed", err.reason || err.message || "Something went wrong.");
+    }
+  });
 }
 
 async function approveSpender() {
   const spender = $("approveSpender").value.trim();
   const amount = $("approveAmount").value.trim();
   if (!current.isAddress(spender) || !amount) {
-    return setStatus("Enter a valid spender address and amount.", "error");
+    return showModal("error", "Can't approve", "Enter a valid spender address and amount.");
   }
-  try {
-    setStatus("Sending simulated approval...");
-    const ref = await current.approve(spender, amount);
-    setStatus(`Approval confirmed (local sim): ${ref}`, "ok");
-  } catch (err) {
-    console.error(err);
-    setStatus(err.reason || err.message || "Approval failed.", "error");
-  }
+  await withLoading($("approveBtn"), async () => {
+    try {
+      setStatus("Waiting for confirmation in your wallet...");
+      const ref = await current.approve(spender, amount);
+      setStatus("");
+      showModal("success", "Approval sent", `Confirmed on-chain.\n${ref}`);
+    } catch (err) {
+      console.error(err);
+      setStatus("");
+      showModal("error", "Approval failed", err.reason || err.message || "Something went wrong.");
+    }
+  });
 }
 
 async function doTransferFrom() {
@@ -324,17 +361,21 @@ async function doTransferFrom() {
   const to = $("tfTo").value.trim();
   const amount = $("tfAmount").value.trim();
   if (!current.isAddress(from) || !current.isAddress(to) || !amount) {
-    return setStatus("Enter valid addresses and amount.", "error");
+    return showModal("error", "Can't send", "Enter valid addresses and an amount.");
   }
-  try {
-    setStatus("Sending simulated transferFrom...");
-    const ref = await current.transferFrom(from, to, amount);
-    setStatus(`transferFrom confirmed (local sim): ${ref}`, "ok");
-    await refreshBalance();
-  } catch (err) {
-    console.error(err);
-    setStatus(err.reason || err.message || "transferFrom failed.", "error");
-  }
+  await withLoading($("tfBtn"), async () => {
+    try {
+      setStatus("Waiting for confirmation in your wallet...");
+      const ref = await current.transferFrom(from, to, amount);
+      setStatus("");
+      showModal("success", "transferFrom sent", `Confirmed on-chain.\n${ref}`);
+      await refreshBalance();
+    } catch (err) {
+      console.error(err);
+      setStatus("");
+      showModal("error", "transferFrom failed", err.reason || err.message || "Something went wrong.");
+    }
+  });
 }
 
 function setupChainTabs() {
@@ -413,7 +454,9 @@ setupChainTabs();
 setupViews();
 setupCopyAddress();
 $("accountSelect").addEventListener("change", connectSelectedAccount);
-$("connectWalletBtn").addEventListener("click", connectSelectedAccount);
+$("connectWalletBtn").addEventListener("click", () =>
+  withLoading($("connectWalletBtn"), connectSelectedAccount)
+);
 $("sendBtn").addEventListener("click", sendTransfer);
 $("approveBtn").addEventListener("click", approveSpender);
 $("tfBtn").addEventListener("click", doTransferFrom);
