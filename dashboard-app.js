@@ -214,13 +214,13 @@ const tronAdapter = {
 
   // Prompts TronLink to add this token to the user's asset list so
   // Send/Approve confirmations show a formatted amount ("10.000000
-  // TUSDT") instead of raw units. This previously failed for the old
-  // contract because its symbol ("USDT") got it auto-flagged as a
-  // fake-Tether lookalike; the redeployed contract uses "TUSDT" instead,
-  // so this should now succeed. Best-effort: wrapped in try/catch since a
-  // declined prompt or unsupported wallet version should never block
-  // connecting.
+  // TUSDT") instead of raw units. Only asked once per browser (tracked in
+  // localStorage) — TronLink queues this prompt and can surface it at an
+  // unrelated moment (e.g. right after a Send completes) if it's fired on
+  // every connect, which looks broken even once the token's already added.
   async registerTokenWithWallet() {
+    const storageKey = `tron_asset_registered_${window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS}`;
+    if (localStorage.getItem(storageKey)) return;
     try {
       const symbol = await this.contract.symbol().call();
       await this.tronWeb.request({
@@ -234,6 +234,7 @@ const tronAdapter = {
           },
         },
       });
+      localStorage.setItem(storageKey, "1");
     } catch (_err) {
       // Not supported, already added, or user dismissed the prompt — fine.
     }
