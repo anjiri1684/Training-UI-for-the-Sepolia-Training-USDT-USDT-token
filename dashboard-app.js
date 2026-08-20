@@ -44,6 +44,18 @@ const ethereumAdapter = {
     return window.ethereum; // best effort — no MetaMask flag found anywhere
   },
 
+  // Checks whether MetaMask already granted this site permission, without
+  // prompting. Lets us silently restore the connection after navigating
+  // back to the page instead of forcing "Connect MetaMask" every time.
+  async trySilentConnect() {
+    const eth = this.getMetaMaskProvider();
+    if (!eth || !eth.isMetaMask) return false;
+    const accounts = await eth.request({ method: "eth_accounts" }).catch(() => []);
+    if (!accounts || accounts.length === 0) return false;
+    await this.connect();
+    return true;
+  },
+
   async connect() {
     const eth = this.getMetaMaskProvider();
     if (!eth) {
@@ -122,6 +134,17 @@ const tronAdapter = {
   contract: null,
   decimals: 6,
   address: null,
+
+  // TronLink already exposes window.tronWeb.ready/defaultAddress if this
+  // site was previously authorized — no prompt-triggering call needed to
+  // check, unlike MetaMask.
+  async trySilentConnect() {
+    if (!window.tronWeb || !window.tronWeb.ready || !window.tronWeb.defaultAddress.base58) {
+      return false;
+    }
+    await this.connect();
+    return true;
+  },
 
   async connect() {
     if (!window.tronLink) {
@@ -226,7 +249,7 @@ async function connectSelectedAccount() {
     const idx = current.connectionMode === "wallet" ? undefined : parseInt($("accountSelect").value, 10);
     const { label, address } = await current.connect(idx);
     $("connectedAddr").textContent = `${label}: ${address}`;
-    const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON local simulation";
+    const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON Nile (real testnet)";
     setStatus(`Connected to ${network} as ${label}.`, "ok");
     await refreshBalance();
   } catch (err) {
@@ -391,6 +414,16 @@ if (current.connectionMode !== "wallet") {
   connectSelectedAccount();
 } else {
   setStatus('Click "Connect MetaMask" to get started.', "ok");
+  // If this site was already authorized in a previous visit, restore the
+  // connection silently instead of making the user click Connect again.
+  current.trySilentConnect().then((connected) => {
+    if (connected) {
+      $("connectedAddr").textContent = `${current.name === "ethereum" ? "MetaMask" : "TronLink"}: ${current.address}`;
+      const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON Nile (real testnet)";
+      setStatus(`Reconnected to ${network} as ${current.address}.`, "ok");
+      refreshBalance();
+    }
+  });
 }
 
 const metaMaskProvider = ethereumAdapter.getMetaMaskProvider();
