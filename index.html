@@ -125,15 +125,6 @@
           <label for="sendAmount">Amount (USDT)</label>
           <input id="sendAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
           <button id="sendBtn" class="primary">Transfer</button>
-          <p class="section-desc" style="margin-top:12px;">
-            <strong>Using TronLink?</strong> Its confirmation popup
-            sometimes shows a large raw number (like
-            <code>1,000,000,000</code>) instead of the amount you typed,
-            occasionally with an "undefined" label and a precision
-            warning. That's a display quirk on TronLink's side only — the
-            amount you typed above is what actually gets sent. It's safe
-            to click Sign.
-          </p>
         </div>
       </section>
 
@@ -151,14 +142,6 @@
           <label for="approveAmount">Amount (USDT)</label>
           <input id="approveAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
           <button id="approveBtn" class="primary">Approve</button>
-          <p class="section-desc" style="margin-top:12px;">
-            <strong>Using TronLink?</strong> Its confirmation popup
-            sometimes shows a large raw number instead of the amount you
-            typed, occasionally with an "undefined" label and a precision
-            warning. That's a display quirk on TronLink's side only — the
-            amount above is what actually gets approved. It's safe to
-            click Sign.
-          </p>
         </div>
       </section>
 
@@ -211,7 +194,6 @@
   <script src="config.js"></script>
   <script src="abi.js"></script>
   <script src="tron-config.js"></script>
-  <script src="tron-abi.js"></script>
   <script src="dashboard-app.js"></script>
 </body>
 </html>

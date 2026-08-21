@@ -56,6 +56,7 @@ const ethereumAdapter = {
   name: "ethereum",
   addressPlaceholder: "0x...",
   connectionMode: "wallet",
+  supportsApprovals: true,
   provider: null,
   signer: null,
   token: null,
@@ -162,8 +163,9 @@ const tronAdapter = {
   name: "tron",
   addressPlaceholder: "T...",
   connectionMode: "wallet", // real TronLink connection, self-custody
+  supportsApprovals: false, // TRC-10 has no approve/transferFrom concept
   tronWeb: null,
-  contract: null,
+  tokenId: null,
   decimals: 6,
   address: null,
 
@@ -208,38 +210,37 @@ const tronAdapter = {
 
     this.tronWeb = window.tronWeb;
     this.address = this.tronWeb.defaultAddress.base58;
-    this.contract = await this.tronWeb.contract(
-      window.TRAINING_USDT_TRON_ABI,
-      window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS
-    );
-    this.decimals = Number(await this.contract.decimals().call());
+    this.tokenId = window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
+    const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
+    this.decimals = Number(info.precision);
     return { label: "TronLink", address: this.address };
   },
 
+  // TRC-10 balances aren't read through a contract call — they're a
+  // native field on the account object itself (assetV2), same category
+  // as the account's TRX balance.
   async balance() {
-    const raw = await this.contract.balanceOf(this.address).call();
-    return fromUnitsBig(raw, this.decimals);
+    const account = await this.tronWeb.trx.getAccount(this.address);
+    const entry = (account.assetV2 || []).find((a) => a.key === this.tokenId);
+    return fromUnitsBig(entry ? entry.value : 0, this.decimals);
   },
 
   async totalSupply() {
-    const raw = await this.contract.totalSupply().call();
-    return fromUnitsBig(raw, this.decimals);
+    const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
+    return fromUnitsBig(info.total_supply, this.decimals);
   },
 
   contractAddress() {
-    return window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS;
+    return `Token ID: ${this.tokenId}`;
   },
 
   async transfer(to, amount) {
-    return await this.contract.transfer(to, toUnits(amount, this.decimals)).send();
-  },
-
-  async approve(spender, amount) {
-    return await this.contract.approve(spender, toUnits(amount, this.decimals)).send();
-  },
-
-  async transferFrom(from, to, amount) {
-    return await this.contract.transferFrom(from, to, toUnits(amount, this.decimals)).send();
+    const raw = toUnits(amount, this.decimals);
+    if (raw > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error("Amount too large for a single TRC-10 transfer.");
+    }
+    const result = await this.tronWeb.trx.sendToken(to, Number(raw), this.tokenId);
+    return result.txid || result.transaction?.txID || JSON.stringify(result);
   },
 
   isAddress(addr) {
@@ -383,12 +384,30 @@ async function doTransferFrom() {
   });
 }
 
+// TRC-10 (TRON) has no approve/transferFrom concept at the protocol
+// level, unlike ERC-20/TRC-20 contracts — hide those nav entries and
+// views entirely when TRON is selected, and bounce off them back to
+// Overview if the user was already on one when switching chains.
+function updateApprovalNavVisibility() {
+  const supported = current.supportsApprovals !== false;
+  ["approve", "tf"].forEach((view) => {
+    document.querySelector(`.side-link[data-view="${view}"]`).classList.toggle("hidden", !supported);
+  });
+  if (!supported) {
+    const activeLink = document.querySelector(".side-link.active");
+    if (activeLink && (activeLink.dataset.view === "approve" || activeLink.dataset.view === "tf")) {
+      document.querySelector('.side-link[data-view="overview"]').click();
+    }
+  }
+}
+
 function setupChainTabs() {
   document.querySelectorAll(".chain-tabs .tab").forEach((tab) => {
     tab.addEventListener("click", async () => {
       document.querySelectorAll(".chain-tabs .tab").forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
       current = adapters[tab.dataset.chain];
+      updateApprovalNavVisibility();
       populateAccountSelect();
       updatePlaceholders();
       $("connectedAddr").textContent = "Not connected";
