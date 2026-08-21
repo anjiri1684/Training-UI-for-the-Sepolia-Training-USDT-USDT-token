@@ -40,7 +40,12 @@ function toUnits(amountStr, dec) {
 }
 
 function fromUnitsBig(value, dec) {
-  const v = BigInt(value);
+  // TronLink's injected tronWeb can return uint256 contract results as a
+  // BigNumber-like object rather than a native bigint/string, which
+  // BigInt() can't convert directly (throws "Cannot convert object to a
+  // BigInt"). Route through toString() first so this works no matter
+  // which shape the wallet library hands back.
+  const v = BigInt(typeof value === "object" && value !== null ? value.toString() : value);
   const base = 10n ** BigInt(dec);
   const whole = v / base;
   const frac = (v % base).toString().padStart(dec, "0");
