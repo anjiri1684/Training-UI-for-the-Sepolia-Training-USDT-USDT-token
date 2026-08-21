@@ -213,35 +213,7 @@ const tronAdapter = {
     this.tokenId = window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
     const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
     this.decimals = Number(info.precision);
-    await this.registerTokenWithWallet(info);
     return { label: "TronLink", address: this.address };
-  },
-
-  // Proactively tells TronLink this token's symbol/decimals so its Send
-  // confirmation shows "100 TUSDT" instead of a raw number — otherwise
-  // TronLink only learns the precision by observing enough activity on
-  // the token over time. Asked at most once per browser (tracked in
-  // localStorage): a declined prompt or an already-known asset should
-  // never interrupt a later, unrelated action.
-  async registerTokenWithWallet(info) {
-    const storageKey = `tron_asset_registered_${this.tokenId}`;
-    if (localStorage.getItem(storageKey)) return;
-    try {
-      await this.tronWeb.request({
-        method: "wallet_watchAsset",
-        params: {
-          type: "trc10",
-          options: {
-            address: this.tokenId,
-            symbol: info.abbr,
-            decimals: this.decimals,
-          },
-        },
-      });
-      localStorage.setItem(storageKey, "1");
-    } catch (_err) {
-      // Not supported, already added, or user dismissed the prompt — fine.
-    }
   },
 
   // TRC-10 balances aren't read through a contract call — they're a
