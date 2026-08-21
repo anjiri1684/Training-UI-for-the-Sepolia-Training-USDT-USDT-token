@@ -240,7 +240,21 @@ const tronAdapter = {
       throw new Error("Amount too large for a single TRC-10 transfer.");
     }
     const result = await this.tronWeb.trx.sendToken(to, Number(raw), this.tokenId);
-    return result.txid || result.transaction?.txID || JSON.stringify(result);
+    const txid = result.txid || result.transaction?.txID;
+    if (txid) await this.waitForConfirmation(txid);
+    return txid || JSON.stringify(result);
+  },
+
+  // sendToken() resolves right after broadcast, not after confirmation —
+  // unlike the Ethereum side's tx.wait(), so refreshBalance() called
+  // immediately afterward can read a stale pre-transfer balance. Poll for
+  // the transaction to actually land on-chain before returning control.
+  async waitForConfirmation(txid, attempts = 15, delayMs = 2000) {
+    for (let i = 0; i < attempts; i++) {
+      const info = await this.tronWeb.trx.getTransactionInfo(txid).catch(() => null);
+      if (info && info.id) return info;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
   },
 
   isAddress(addr) {
