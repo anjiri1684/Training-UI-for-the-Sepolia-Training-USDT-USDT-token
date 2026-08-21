@@ -208,36 +208,7 @@ const tronAdapter = {
       window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS
     );
     this.decimals = Number(await this.contract.decimals().call());
-    await this.registerTokenWithWallet();
     return { label: "TronLink", address: this.address };
-  },
-
-  // Prompts TronLink to add this token to the user's asset list so
-  // Send/Approve confirmations show a formatted amount ("10.000000
-  // TUSDT") instead of raw units. Only asked once per browser (tracked in
-  // localStorage) — TronLink queues this prompt and can surface it at an
-  // unrelated moment (e.g. right after a Send completes) if it's fired on
-  // every connect, which looks broken even once the token's already added.
-  async registerTokenWithWallet() {
-    const storageKey = `tron_asset_registered_${window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS}`;
-    if (localStorage.getItem(storageKey)) return;
-    try {
-      const symbol = await this.contract.symbol().call();
-      await this.tronWeb.request({
-        method: "wallet_watchAsset",
-        params: {
-          type: "trc20",
-          options: {
-            address: window.TRAINING_USDT_TRON_CONFIG.CONTRACT_ADDRESS,
-            symbol,
-            decimals: this.decimals,
-          },
-        },
-      });
-      localStorage.setItem(storageKey, "1");
-    } catch (_err) {
-      // Not supported, already added, or user dismissed the prompt — fine.
-    }
   },
 
   async balance() {
