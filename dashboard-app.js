@@ -21,7 +21,6 @@ $("modalOverlay").addEventListener("click", (e) => {
   if (e.target === $("modalOverlay")) hideModal();
 });
 
-/** Disables a button and shows a spinner for the duration of an async action. */
 async function withLoading(btn, fn) {
   btn.classList.add("is-loading");
   btn.disabled = true;
@@ -64,22 +63,16 @@ const ethereumAdapter = {
   address: null,
 
   getMetaMaskProvider() {
-    // Some other extensions (e.g. multi-chain TronLink builds) also inject
-    // an Ethereum-style provider and can end up occupying window.ethereum.
-    // If several providers are present, pick the one that identifies as
-    // MetaMask specifically instead of trusting window.ethereum blindly.
     if (!window.ethereum) return null;
     if (Array.isArray(window.ethereum.providers)) {
       const mm = window.ethereum.providers.find((p) => p.isMetaMask);
       if (mm) return mm;
     }
     if (window.ethereum.isMetaMask) return window.ethereum;
-    return window.ethereum; // best effort — no MetaMask flag found anywhere
+    return window.ethereum; 
   },
 
-  // Checks whether MetaMask already granted this site permission, without
-  // prompting. Lets us silently restore the connection after navigating
-  // back to the page instead of forcing "Connect MetaMask" every time.
+
   async trySilentConnect() {
     const eth = this.getMetaMaskProvider();
     if (!eth || !eth.isMetaMask) return false;
@@ -169,9 +162,6 @@ const tronAdapter = {
   decimals: 6,
   address: null,
 
-  // TronLink already exposes window.tronWeb.ready/defaultAddress if this
-  // site was previously authorized — no prompt-triggering call needed to
-  // check, unlike MetaMask.
   async trySilentConnect() {
     if (!window.tronWeb || !window.tronWeb.ready || !window.tronWeb.defaultAddress.base58) {
       return false;
@@ -192,9 +182,7 @@ const tronAdapter = {
       throw new Error("TronLink is installed but not unlocked/ready. Open the extension and try again.");
     }
 
-    // window.tronWeb can take a moment to sync to the currently-selected
-    // TronLink network right after tron_requestAccounts, so retry briefly
-    // before concluding it's actually on the wrong network.
+
     let host = "";
     for (let i = 0; i < 5; i++) {
       host = (window.tronWeb.fullNode && window.tronWeb.fullNode.host) || "";
@@ -213,12 +201,41 @@ const tronAdapter = {
     this.tokenId = window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
     const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
     this.decimals = Number(info.precision);
+    await this.registerTokenWithWallet(info);
     return { label: "TronLink", address: this.address };
   },
 
-  // TRC-10 balances aren't read through a contract call — they're a
-  // native field on the account object itself (assetV2), same category
-  // as the account's TRX balance.
+  // TronLink's Send confirmation shows the raw base-unit amount
+  // ("100,000,000") instead of "100.000000 TUSDT" for any TRC-10 asset
+  // whose precision/symbol it hasn't cached yet — it deliberately
+  // ignores decimals claimed by the calling dApp. Ask it once per
+  // browser to add the asset, so confirmations format with the 6
+  // decimals. A decline or an "Invalid Asset" rejection (freshly-issued
+  // assets aren't always indexed by TronLink yet) is swallowed — the
+  // next connect retries, and the Send view's note covers the raw-number
+  // case meanwhile.
+  async registerTokenWithWallet(info) {
+    const storageKey = `tron_asset_registered_${this.tokenId}`;
+    if (localStorage.getItem(storageKey)) return;
+    try {
+      await this.tronWeb.request({
+        method: "wallet_watchAsset",
+        params: {
+          type: "trc10",
+          options: {
+            address: this.tokenId,
+            symbol: info.abbr,
+            decimals: this.decimals,
+          },
+        },
+      });
+      localStorage.setItem(storageKey, "1");
+    } catch (_err) {
+      // Not supported, already added, or user dismissed the prompt — fine.
+    }
+  },
+
+
   async balance() {
     const account = await this.tronWeb.trx.getAccount(this.address);
     const entry = (account.assetV2 || []).find((a) => a.key === this.tokenId);
@@ -245,10 +262,7 @@ const tronAdapter = {
     return txid || JSON.stringify(result);
   },
 
-  // sendToken() resolves right after broadcast, not after confirmation —
-  // unlike the Ethereum side's tx.wait(), so refreshBalance() called
-  // immediately afterward can read a stale pre-transfer balance. Poll for
-  // the transaction to actually land on-chain before returning control.
+
   async waitForConfirmation(txid, attempts = 15, delayMs = 2000) {
     for (let i = 0; i < attempts; i++) {
       const info = await this.tronWeb.trx.getTransactionInfo(txid).catch(() => null);
@@ -398,10 +412,7 @@ async function doTransferFrom() {
   });
 }
 
-// TRC-10 (TRON) has no approve/transferFrom concept at the protocol
-// level, unlike ERC-20/TRC-20 contracts — hide those nav entries and
-// views entirely when TRON is selected, and bounce off them back to
-// Overview if the user was already on one when switching chains.
+
 function updateApprovalNavVisibility() {
   const supported = current.supportsApprovals !== false;
   ["approve", "tf"].forEach((view) => {
@@ -433,8 +444,6 @@ function setupChainTabs() {
       if (current.connectionMode === "wallet") {
         const btnLabel = current.name === "ethereum" ? "Connect MetaMask" : "Connect TronLink";
         setStatus(`Click "${btnLabel}" to get started.`, "ok");
-        // Try to silently restore an already-authorized connection for
-        // this chain instead of always requiring a fresh manual click.
         const connected = await current.trySilentConnect();
         if (connected) {
           const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON Nile (real testnet)";
@@ -504,8 +513,6 @@ if (current.connectionMode !== "wallet") {
   connectSelectedAccount();
 } else {
   setStatus('Click "Connect MetaMask" to get started.', "ok");
-  // If this site was already authorized in a previous visit, restore the
-  // connection silently instead of making the user click Connect again.
   current.trySilentConnect().then((connected) => {
     if (connected) {
       $("connectedAddr").textContent = `${current.name === "ethereum" ? "MetaMask" : "TronLink"}: ${current.address}`;
