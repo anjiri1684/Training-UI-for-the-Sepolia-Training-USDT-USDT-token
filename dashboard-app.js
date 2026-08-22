@@ -100,8 +100,12 @@ const ethereumAdapter = {
       .request({ method: "eth_accounts" })
       .catch(() => []);
     if (!accounts || accounts.length === 0) return false;
-    await this.connect();
-    return true;
+    try {
+      await this.connect();
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   async connect() {
@@ -140,11 +144,13 @@ const ethereumAdapter = {
   },
 
   async balance() {
+    if (!this.token || !this.address) return "0";
     const raw = await this.token.balanceOf(this.address);
     return ethers.formatUnits(raw, this.decimals);
   },
 
   async totalSupply() {
+    if (!this.token) return "0";
     const raw = await this.token.totalSupply();
     return ethers.formatUnits(raw, this.decimals);
   },
@@ -189,10 +195,11 @@ const ethereumAdapter = {
 const tronAdapter = {
   name: "tron",
   addressPlaceholder: "T...",
-  connectionMode: "wallet", 
-  supportsApprovals: true,
+  connectionMode: "wallet",
+  supportsApprovals: false,
   tronWeb: null,
-  contractAddressVal: null,
+  tokenId: null,
+  isContract: false,
   tokenContract: null,
   decimals: 6,
   address: null,
@@ -205,13 +212,19 @@ const tronAdapter = {
     ) {
       return false;
     }
-    await this.connect();
-    return true;
+    try {
+      await this.connect();
+      return true;
+    } catch {
+      return false;
+    }
   },
 
   async connect() {
     if (!window.tronLink) {
-      throw new Error("No wallet found. Install TronLink to use the TRON side.");
+      throw new Error(
+        "No wallet found. Install TronLink to use the TRON side.",
+      );
     }
     const res = await window.tronLink.request({
       method: "tron_requestAccounts",
@@ -220,7 +233,9 @@ const tronAdapter = {
       throw new Error("TronLink connection was not approved.");
     }
     if (!window.tronWeb || !window.tronWeb.ready) {
-      throw new Error("TronLink is installed but not unlocked/ready. Open the extension and try again.");
+      throw new Error(
+        "TronLink is installed but not unlocked/ready. Open the extension and try again.",
+      );
     }
 
     let host = "";
@@ -232,72 +247,103 @@ const tronAdapter = {
     if (!host.toLowerCase().includes("nile")) {
       throw new Error(
         `TronLink doesn't look like it's on Nile Testnet (detected node: "${host || "unknown"}"). ` +
-          'Switch networks inside the TronLink extension, then click "Connect TronLink" again.'
+          'Switch networks inside the TronLink extension, then click "Connect TronLink" again.',
       );
     }
 
     this.tronWeb = window.tronWeb;
     this.address = this.tronWeb.defaultAddress.base58;
-    this.contractAddressVal = window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
-    
-    this.tokenContract = await this.tronWeb.contract().at(this.contractAddressVal);
-    
-    try {
-      const dec = await this.tokenContract.decimals().call();
-      this.decimals = Number(dec);
-    } catch {
-      this.decimals = 6;
+    this.tokenId = window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
+
+    // Detect whether TOKEN_ID is a TRC-20 Smart Contract address (starts with T) or a TRC-10 Asset ID
+    if (typeof this.tokenId === "string" && this.tokenId.startsWith("T")) {
+      this.isContract = true;
+      this.tokenContract = await this.tronWeb.contract().at(this.tokenId);
+      try {
+        const dec = await this.tokenContract.decimals().call();
+        this.decimals = Number(dec);
+      } catch {
+        this.decimals = 6;
+      }
+    } else {
+      this.isContract = false;
+      const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
+      this.decimals = Number(info.precision);
     }
 
     return { label: "TronLink", address: this.address };
   },
 
   async balance() {
-    if (!this.tokenContract) return "0";
-    try {
-      const raw = await this.tokenContract.balanceOf(this.address).call();
-      return fromUnitsBig(raw, this.decimals);
-    } catch (e) {
-      console.error("Error fetching balance:", e);
-      return "0";
+    if (!this.address) return "0";
+    if (this.isContract && this.tokenContract) {
+      try {
+        const raw = await this.tokenContract.balanceOf(this.address).call();
+        return fromUnitsBig(raw, this.decimals);
+      } catch {
+        return "0";
+      }
+    } else {
+      const account = await this.tronWeb.trx.getAccount(this.address);
+      const entry = (account.assetV2 || []).find((a) => a.key === this.tokenId);
+      return fromUnitsBig(entry ? entry.value : 0, this.decimals);
     }
   },
 
   async totalSupply() {
-    if (!this.tokenContract) return "0";
-    try {
-      const raw = await this.tokenContract.totalSupply().call();
-      return fromUnitsBig(raw, this.decimals);
-    } catch {
-      return "0";
+    if (this.isContract && this.tokenContract) {
+      try {
+        const raw = await this.tokenContract.totalSupply().call();
+        return fromUnitsBig(raw, this.decimals);
+      } catch {
+        return "—";
+      }
+    } else {
+      const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
+      return fromUnitsBig(info.total_supply, this.decimals);
     }
   },
 
   contractAddress() {
-    return this.contractAddressVal || window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
+    return this.isContract ? this.tokenId : `Token ID: ${this.tokenId}`;
   },
 
   async transfer(to, amount) {
-    if (!this.tokenContract) {
-      throw new Error("Token contract not initialized.");
+    if (this.isContract && this.tokenContract) {
+      const rawAmount = toUnits(amount, this.decimals);
+      const txid = await this.tokenContract
+        .transfer(to, rawAmount.toString())
+        .send();
+      if (txid) await this.waitForConfirmation(txid);
+      return txid;
+    } else {
+      const numericAmount = Number(amount);
+      if (isNaN(numericAmount) || numericAmount <= 0) {
+        throw new Error("Please enter a valid amount.");
+      }
+      const result = await this.tronWeb.trx.sendToken(
+        to,
+        numericAmount,
+        this.tokenId,
+      );
+      const txid = result.txid || result.transaction?.txID;
+      if (txid) await this.waitForConfirmation(txid);
+      return txid || JSON.stringify(result);
     }
-    const rawAmount = toUnits(amount, this.decimals);
-    
-    const txid = await this.tokenContract.transfer(to, rawAmount.toString()).send();
-    if (txid) await this.waitForConfirmation(txid);
-    return txid;
   },
 
   async waitForConfirmation(txid, attempts = 15, delayMs = 2000) {
     for (let i = 0; i < attempts; i++) {
-      const info = await this.tronWeb.trx.getTransactionInfo(txid).catch(() => null);
+      const info = await this.tronWeb.trx
+        .getTransactionInfo(txid)
+        .catch(() => null);
       if (info && info.id) return info;
-      await new Promise((r) => setTimeout(r, delayMs));
+      await new Promise((r) => setTimeout(r, 400));
     }
   },
 
   isAddress(addr) {
-    return this.tronWeb.isAddress(addr);
+    return this.tronWeb ? this.tronWeb.isAddress(addr) : false;
   },
 };
 
@@ -352,6 +398,7 @@ async function connectSelectedAccount() {
 }
 
 async function refreshBalance() {
+  if (!current.address) return;
   const formatted = await current.balance();
   $("tokBalance").textContent = formatted;
   $("tokBalanceHero").textContent = formatted;
@@ -410,6 +457,7 @@ async function sendTransfer() {
     `Send ${displayAmount} USDT to ${to}?${tronHint}`,
   );
   if (!ok) return;
+
   await withLoading($("sendBtn"), async () => {
     try {
       setStatus("Waiting for confirmation in your wallet...");
@@ -587,6 +635,7 @@ function setupCopyAddress() {
   $("copyReceiveBtn").addEventListener("click", copyAddress);
 }
 
+// --- AUTOMATIC BALANCE & TRONLINK STATE SYNC ---
 
 window.addEventListener("message", (e) => {
   if (!e.data || !e.data.message) return;
@@ -613,6 +662,7 @@ setInterval(() => {
   }
 }, 5000);
 
+// --- INITIALIZATION & EVENT BINDINGS ---
 
 populateAccountSelect();
 updatePlaceholders();
@@ -647,7 +697,7 @@ if (current.connectionMode !== "wallet") {
 }
 
 const metaMaskProvider = ethereumAdapter.getMetaMaskProvider();
-if (metaMaskProvider) {
+if (metaMaskProvider && typeof metaMaskProvider.on === "function") {
   metaMaskProvider.on("chainChanged", () => window.location.reload());
   metaMaskProvider.on("accountsChanged", () => window.location.reload());
 }
