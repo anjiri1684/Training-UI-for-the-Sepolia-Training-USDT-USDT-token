@@ -21,7 +21,6 @@ $("modalOverlay").addEventListener("click", (e) => {
   if (e.target === $("modalOverlay")) hideModal();
 });
 
-// Yes/no dialog. Resolves true on Continue, false on Cancel/backdrop click.
 function showConfirm(title, message) {
   return new Promise((resolve) => {
     $("confirmTitle").textContent = title;
@@ -56,20 +55,13 @@ function toUnits(amountStr, dec) {
   return BigInt(whole || "0") * 10n ** BigInt(dec) + BigInt(fracPadded || "0");
 }
 
-// Display formatting: pads/truncates an amount to the token's decimals the
-// same way toUnits() does (truncation, not rounding), so what the confirm
-// dialog shows is byte-for-byte what gets sent.
+
 function padDecimals(amountStr, dec) {
   const [whole, frac = ""] = amountStr.split(".");
   return `${whole || "0"}.${(frac + "0".repeat(dec)).slice(0, dec)}`;
 }
 
 function fromUnitsBig(value, dec) {
-  // TronLink's injected tronWeb can return uint256 contract results as a
-  // BigNumber-like object rather than a native bigint/string, which
-  // BigInt() can't convert directly (throws "Cannot convert object to a
-  // BigInt"). Route through toString() first so this works no matter
-  // which shape the wallet library hands back.
   const v = BigInt(typeof value === "object" && value !== null ? value.toString() : value);
   const base = 10n ** BigInt(dec);
   const whole = v / base;
@@ -181,8 +173,8 @@ const ethereumAdapter = {
 const tronAdapter = {
   name: "tron",
   addressPlaceholder: "T...",
-  connectionMode: "wallet", // real TronLink connection, self-custody
-  supportsApprovals: false, // TRC-10 has no approve/transferFrom concept
+  connectionMode: "wallet", 
+  supportsApprovals: false,
   tronWeb: null,
   tokenId: null,
   decimals: 6,
@@ -255,8 +247,6 @@ const tronAdapter = {
   },
 
   async transfer(to, amount) {
-    // sendToken expects standard unit values for TRC-10 tokens (e.g. 100),
-    // because TronLink scales by the precision automatically when prompting.
     const numericAmount = Number(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
       throw new Error("Please enter a valid amount.");

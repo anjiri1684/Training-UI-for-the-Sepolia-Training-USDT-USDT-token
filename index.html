@@ -126,13 +126,12 @@
           <input id="sendAmount" type="number" min="0" step="0.000001" placeholder="0.0" />
           <button id="sendBtn" class="primary">Transfer</button>
           <p class="section-desc" style="margin-top:12px;">
-            <strong>Using TronLink?</strong> Approve the one-time "Add TUSDT
-            to wallet?" prompt after connecting, and its confirmation popup
-            will show the amount with decimals (e.g. "100.000000 TUSDT").
-            Until then it may show a raw number — "100,000,000" for 100,
-            which is 100 × 10⁶ base units — that's TronLink's own display,
-            not an error. Either way, signing sends exactly the amount you
-            typed.
+            <strong>Using TronLink?</strong> Its confirmation popup always
+            shows the amount as base units — "100,000,000" for 100, which
+            is 100 × 10⁶ — because that's how TronLink itself renders TRC-10
+            sends (no app can change that). The confirm step that appears
+            when you click Transfer shows the real amount (e.g.
+            "100.000000"), and signing sends exactly that.
           </p>
         </div>
       </section>
