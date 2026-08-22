@@ -189,7 +189,11 @@ const tronAdapter = {
   address: null,
 
   async trySilentConnect() {
-    if (!window.tronWeb || !window.tronWeb.ready || !window.tronWeb.defaultAddress.base58) {
+    if (
+      !window.tronWeb ||
+      !window.tronWeb.ready ||
+      !window.tronWeb.defaultAddress.base58
+    ) {
       return false;
     }
     await this.connect();
@@ -198,16 +202,21 @@ const tronAdapter = {
 
   async connect() {
     if (!window.tronLink) {
-      throw new Error("No wallet found. Install TronLink to use the TRON side.");
+      throw new Error(
+        "No wallet found. Install TronLink to use the TRON side.",
+      );
     }
-    const res = await window.tronLink.request({ method: "tron_requestAccounts" });
+    const res = await window.tronLink.request({
+      method: "tron_requestAccounts",
+    });
     if (res.code && res.code !== 200) {
       throw new Error("TronLink connection was not approved.");
     }
     if (!window.tronWeb || !window.tronWeb.ready) {
-      throw new Error("TronLink is installed but not unlocked/ready. Open the extension and try again.");
+      throw new Error(
+        "TronLink is installed but not unlocked/ready. Open the extension and try again.",
+      );
     }
-
 
     let host = "";
     for (let i = 0; i < 5; i++) {
@@ -218,7 +227,7 @@ const tronAdapter = {
     if (!host.toLowerCase().includes("nile")) {
       throw new Error(
         `TronLink doesn't look like it's on Nile Testnet (detected node: "${host || "unknown"}"). ` +
-          'Switch networks inside the TronLink extension, then click "Connect TronLink" again.'
+          'Switch networks inside the TronLink extension, then click "Connect TronLink" again.',
       );
     }
 
@@ -227,40 +236,8 @@ const tronAdapter = {
     this.tokenId = window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
     const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
     this.decimals = Number(info.precision);
-    await this.registerTokenWithWallet(info);
     return { label: "TronLink", address: this.address };
   },
-
-  // TronLink's Send confirmation shows the raw base-unit amount
-  // ("100,000,000") instead of "100.000000 TUSDT" for any TRC-10 asset
-  // whose precision/symbol it hasn't cached yet — it deliberately
-  // ignores decimals claimed by the calling dApp. Ask it once per
-  // browser to add the asset, so confirmations format with the 6
-  // decimals. A decline or an "Invalid Asset" rejection (freshly-issued
-  // assets aren't always indexed by TronLink yet) is swallowed — the
-  // next connect retries, and the Send view's note covers the raw-number
-  // case meanwhile.
-  async registerTokenWithWallet(info) {
-    const storageKey = `tron_asset_registered_${this.tokenId}`;
-    if (localStorage.getItem(storageKey)) return;
-    try {
-      await this.tronWeb.request({
-        method: "wallet_watchAsset",
-        params: {
-          type: "trc10",
-          options: {
-            address: this.tokenId,
-            symbol: info.abbr,
-            decimals: this.decimals,
-          },
-        },
-      });
-      localStorage.setItem(storageKey, "1");
-    } catch (_err) {
-      // Not supported, already added, or user dismissed the prompt — fine.
-    }
-  },
-
 
   async balance() {
     const account = await this.tronWeb.trx.getAccount(this.address);
@@ -278,20 +255,27 @@ const tronAdapter = {
   },
 
   async transfer(to, amount) {
-    const raw = toUnits(amount, this.decimals);
-    if (raw > BigInt(Number.MAX_SAFE_INTEGER)) {
-      throw new Error("Amount too large for a single TRC-10 transfer.");
+    // sendToken expects standard unit values for TRC-10 tokens (e.g. 100),
+    // because TronLink scales by the precision automatically when prompting.
+    const numericAmount = Number(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      throw new Error("Please enter a valid amount.");
     }
-    const result = await this.tronWeb.trx.sendToken(to, Number(raw), this.tokenId);
+    const result = await this.tronWeb.trx.sendToken(
+      to,
+      numericAmount,
+      this.tokenId,
+    );
     const txid = result.txid || result.transaction?.txID;
     if (txid) await this.waitForConfirmation(txid);
     return txid || JSON.stringify(result);
   },
 
-
   async waitForConfirmation(txid, attempts = 15, delayMs = 2000) {
     for (let i = 0; i < attempts; i++) {
-      const info = await this.tronWeb.trx.getTransactionInfo(txid).catch(() => null);
+      const info = await this.tronWeb.trx
+        .getTransactionInfo(txid)
+        .catch(() => null);
       if (info && info.id) return info;
       await new Promise((r) => setTimeout(r, delayMs));
     }
@@ -383,10 +367,7 @@ async function sendTransfer() {
   if (!Number.isFinite(num) || num < 0) {
     return showModal("error", "Can't send", "Enter a valid amount.");
   }
-  // Show the exact amount (with the token's decimal precision) before the
-  // wallet popup opens. TronLink's own confirmation shows the raw base-unit
-  // number (e.g. 100,000,000 for 100) and that display can't be changed from
-  // the page — so this dialog is the authoritative "what you're sending".
+
   const displayAmount = padDecimals(
     num.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 }),
     current.decimals
