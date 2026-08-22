@@ -63,9 +63,7 @@ function padDecimals(amountStr, dec) {
 }
 
 function fromUnitsBig(value, dec) {
-  const v = BigInt(
-    typeof value === "object" && value !== null ? value.toString() : value,
-  );
+  const v = BigInt(typeof value === "object" && value !== null ? value.toString() : value);
   const base = 10n ** BigInt(dec);
   const whole = v / base;
   const frac = (v % base).toString().padStart(dec, "0");
@@ -90,15 +88,13 @@ const ethereumAdapter = {
       if (mm) return mm;
     }
     if (window.ethereum.isMetaMask) return window.ethereum;
-    return window.ethereum;
+    return window.ethereum; 
   },
 
   async trySilentConnect() {
     const eth = this.getMetaMaskProvider();
     if (!eth || !eth.isMetaMask) return false;
-    const accounts = await eth
-      .request({ method: "eth_accounts" })
-      .catch(() => []);
+    const accounts = await eth.request({ method: "eth_accounts" }).catch(() => []);
     if (!accounts || accounts.length === 0) return false;
     try {
       await this.connect();
@@ -111,13 +107,11 @@ const ethereumAdapter = {
   async connect() {
     const eth = this.getMetaMaskProvider();
     if (!eth) {
-      throw new Error(
-        "No wallet found. Install MetaMask to use the Ethereum side.",
-      );
+      throw new Error("No wallet found. Install MetaMask to use the Ethereum side.");
     }
     if (!eth.isMetaMask) {
       throw new Error(
-        "Could not find MetaMask specifically — another wallet extension (e.g. TronLink) may be occupying the Ethereum connection slot. Try disabling other wallet extensions temporarily.",
+        "Could not find MetaMask specifically — another wallet extension (e.g. TronLink) may be occupying the Ethereum connection slot. Try disabling other wallet extensions temporarily."
       );
     }
     this.eth = eth;
@@ -137,7 +131,7 @@ const ethereumAdapter = {
     this.token = new ethers.Contract(
       window.TRAINING_USDT_CONFIG.CONTRACT_ADDRESS,
       window.TRAINING_USDT_ABI,
-      this.signer,
+      this.signer
     );
     this.decimals = await this.token.decimals();
     return { label: "MetaMask", address: this.address };
@@ -160,29 +154,19 @@ const ethereumAdapter = {
   },
 
   async transfer(to, amount) {
-    const tx = await this.token.transfer(
-      to,
-      ethers.parseUnits(amount, this.decimals),
-    );
+    const tx = await this.token.transfer(to, ethers.parseUnits(amount, this.decimals));
     await tx.wait();
     return tx.hash;
   },
 
   async approve(spender, amount) {
-    const tx = await this.token.approve(
-      spender,
-      ethers.parseUnits(amount, this.decimals),
-    );
+    const tx = await this.token.approve(spender, ethers.parseUnits(amount, this.decimals));
     await tx.wait();
     return tx.hash;
   },
 
   async transferFrom(from, to, amount) {
-    const tx = await this.token.transferFrom(
-      from,
-      to,
-      ethers.parseUnits(amount, this.decimals),
-    );
+    const tx = await this.token.transferFrom(from, to, ethers.parseUnits(amount, this.decimals));
     await tx.wait();
     return tx.hash;
   },
@@ -249,7 +233,6 @@ const tronAdapter = {
     this.address = this.tronWeb.defaultAddress.base58;
     this.tokenId = window.TRAINING_USDT_TRON_CONFIG.TOKEN_ID;
 
-    // Detect if TOKEN_ID is TRC-20 contract (starts with T) or TRC-10 asset ID (numeric)
     if (typeof this.tokenId === "string" && this.tokenId.startsWith("T")) {
       this.isContract = true;
       this.tokenContract = await this.tronWeb.contract().at(this.tokenId);
@@ -263,7 +246,7 @@ const tronAdapter = {
       this.isContract = false;
       try {
         const info = await this.tronWeb.trx.getTokenFromID(this.tokenId);
-        this.decimals = Number(info.precision || 6);
+        this.decimals = Number(info.precision !== undefined ? info.precision : 6);
       } catch {
         this.decimals = 6;
       }
@@ -315,10 +298,10 @@ const tronAdapter = {
   },
 
   async transfer(to, amount) {
+    this.tronWeb = window.tronWeb;
+    
     if (this.isContract && this.tokenContract) {
       const rawAmount = toUnits(amount, this.decimals);
-      
-      // Execute TRC-20 contract call with feeLimit (100 TRX = 100,000,000 SUN) to prevent OUT_OF_ENERGY reverts
       const txid = await this.tokenContract.transfer(to, rawAmount.toString()).send({
         feeLimit: 100000000,
         callValue: 0,
@@ -326,16 +309,33 @@ const tronAdapter = {
       if (txid) await this.waitForConfirmation(txid);
       return txid;
     } else {
-      // Execute TRC-10 transfer using base integer units
       const rawUnits = Number(toUnits(amount, this.decimals));
       if (isNaN(rawUnits) || rawUnits <= 0) {
         throw new Error("Please enter a valid amount.");
       }
-      
-      const result = await this.tronWeb.trx.sendToken(to, rawUnits, String(this.tokenId));
-      const txid = result.txid || result.transaction?.txID;
+
+      const unsignedTx = await this.tronWeb.transactionBuilder.sendToken(
+        to,
+        rawUnits,
+        String(this.tokenId),
+        this.address
+      );
+
+      const signedTx = await this.tronWeb.trx.sign(unsignedTx);
+      const broadcast = await this.tronWeb.trx.sendRawTransaction(signedTx);
+
+      if (!broadcast.result && !broadcast.txid) {
+        const msg = broadcast.message
+          ? typeof broadcast.message === "string"
+            ? broadcast.message
+            : String(broadcast.message)
+          : "Transaction broadcast failed.";
+        throw new Error(msg);
+      }
+
+      const txid = signedTx.txID || broadcast.txid;
       if (txid) await this.waitForConfirmation(txid);
-      return txid || JSON.stringify(result);
+      return txid;
     }
   },
 
@@ -361,8 +361,7 @@ function populateAccountSelect() {
   if (current.connectionMode === "wallet") {
     select.classList.add("hidden");
     connectBtn.classList.remove("hidden");
-    connectBtn.textContent =
-      current.name === "ethereum" ? "Connect MetaMask" : "Connect TronLink";
+    connectBtn.textContent = current.name === "ethereum" ? "Connect MetaMask" : "Connect TronLink";
     return;
   }
   connectBtn.classList.add("hidden");
@@ -384,16 +383,10 @@ function updatePlaceholders() {
 
 async function connectSelectedAccount() {
   try {
-    const idx =
-      current.connectionMode === "wallet"
-        ? undefined
-        : parseInt($("accountSelect").value, 10);
+    const idx = current.connectionMode === "wallet" ? undefined : parseInt($("accountSelect").value, 10);
     const { label, address } = await current.connect(idx);
     $("connectedAddr").textContent = `${label}: ${address}`;
-    const network =
-      current.name === "ethereum"
-        ? "Ethereum Sepolia (real testnet)"
-        : "TRON Nile (real testnet)";
+    const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON Nile (real testnet)";
     setStatus(`Connected to ${network} as ${label}.`, "ok");
     await refreshBalance();
   } catch (err) {
@@ -435,11 +428,7 @@ async function sendTransfer() {
   const to = $("sendTo").value.trim();
   const amount = $("sendAmount").value.trim();
   if (!current.isAddress(to) || !amount) {
-    return showModal(
-      "error",
-      "Can't send",
-      "Enter a valid recipient address and amount.",
-    );
+    return showModal("error", "Can't send", "Enter a valid recipient address and amount.");
   }
   const num = Number(amount);
   if (!Number.isFinite(num) || num <= 0) {
@@ -447,20 +436,14 @@ async function sendTransfer() {
   }
 
   const displayAmount = padDecimals(
-    num.toLocaleString("en-US", {
-      useGrouping: false,
-      maximumFractionDigits: 20,
-    }),
-    current.decimals,
+    num.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 }),
+    current.decimals
   );
   const tronHint =
     current.name === "tron"
-      ? "\n\nTronLink's popup may show the raw number (e.g. 100,000,000) — that's its own display; the amount above is exactly what gets sent."
+      ? "\n\nTronLink's popup may show the raw number — that's its own display; the amount above is exactly what gets sent."
       : "";
-  const ok = await showConfirm(
-    "Confirm send",
-    `Send ${displayAmount} USDT to ${to}?${tronHint}`,
-  );
+  const ok = await showConfirm("Confirm send", `Send ${displayAmount} USDT to ${to}?${tronHint}`);
   if (!ok) return;
 
   await withLoading($("sendBtn"), async () => {
@@ -475,11 +458,7 @@ async function sendTransfer() {
     } catch (err) {
       console.error(err);
       setStatus("");
-      showModal(
-        "error",
-        "Transfer failed",
-        err.reason || err.message || "Something went wrong.",
-      );
+      showModal("error", "Transfer failed", err.reason || err.message || "Something went wrong.");
     }
   });
 }
@@ -488,11 +467,7 @@ async function approveSpender() {
   const spender = $("approveSpender").value.trim();
   const amount = $("approveAmount").value.trim();
   if (!current.isAddress(spender) || !amount) {
-    return showModal(
-      "error",
-      "Can't approve",
-      "Enter a valid spender address and amount.",
-    );
+    return showModal("error", "Can't approve", "Enter a valid spender address and amount.");
   }
   await withLoading($("approveBtn"), async () => {
     try {
@@ -503,11 +478,7 @@ async function approveSpender() {
     } catch (err) {
       console.error(err);
       setStatus("");
-      showModal(
-        "error",
-        "Approval failed",
-        err.reason || err.message || "Something went wrong.",
-      );
+      showModal("error", "Approval failed", err.reason || err.message || "Something went wrong.");
     }
   });
 }
@@ -517,11 +488,7 @@ async function doTransferFrom() {
   const to = $("tfTo").value.trim();
   const amount = $("tfAmount").value.trim();
   if (!current.isAddress(from) || !current.isAddress(to) || !amount) {
-    return showModal(
-      "error",
-      "Can't send",
-      "Enter valid addresses and an amount.",
-    );
+    return showModal("error", "Can't send", "Enter valid addresses and an amount.");
   }
   await withLoading($("tfBtn"), async () => {
     try {
@@ -533,11 +500,7 @@ async function doTransferFrom() {
     } catch (err) {
       console.error(err);
       setStatus("");
-      showModal(
-        "error",
-        "transferFrom failed",
-        err.reason || err.message || "Something went wrong.",
-      );
+      showModal("error", "transferFrom failed", err.reason || err.message || "Something went wrong.");
     }
   });
 }
@@ -545,17 +508,11 @@ async function doTransferFrom() {
 function updateApprovalNavVisibility() {
   const supported = current.supportsApprovals !== false;
   ["approve", "tf"].forEach((view) => {
-    document
-      .querySelector(`.side-link[data-view="${view}"]`)
-      .classList.toggle("hidden", !supported);
+    document.querySelector(`.side-link[data-view="${view}"]`).classList.toggle("hidden", !supported);
   });
   if (!supported) {
     const activeLink = document.querySelector(".side-link.active");
-    if (
-      activeLink &&
-      (activeLink.dataset.view === "approve" ||
-        activeLink.dataset.view === "tf")
-    ) {
+    if (activeLink && (activeLink.dataset.view === "approve" || activeLink.dataset.view === "tf")) {
       document.querySelector('.side-link[data-view="overview"]').click();
     }
   }
@@ -564,9 +521,7 @@ function updateApprovalNavVisibility() {
 function setupChainTabs() {
   document.querySelectorAll(".chain-tabs .tab").forEach((tab) => {
     tab.addEventListener("click", async () => {
-      document
-        .querySelectorAll(".chain-tabs .tab")
-        .forEach((t) => t.classList.remove("active"));
+      document.querySelectorAll(".chain-tabs .tab").forEach((t) => t.classList.remove("active"));
       tab.classList.add("active");
       current = adapters[tab.dataset.chain];
       updateApprovalNavVisibility();
@@ -579,17 +534,12 @@ function setupChainTabs() {
       $("usdBalanceHero").textContent = "0.00";
       $("receiveAddr").textContent = "Not connected";
       if (current.connectionMode === "wallet") {
-        const btnLabel =
-          current.name === "ethereum" ? "Connect MetaMask" : "Connect TronLink";
+        const btnLabel = current.name === "ethereum" ? "Connect MetaMask" : "Connect TronLink";
         setStatus(`Click "${btnLabel}" to get started.`, "ok");
         const connected = await current.trySilentConnect();
         if (connected) {
-          const network =
-            current.name === "ethereum"
-              ? "Ethereum Sepolia (real testnet)"
-              : "TRON Nile (real testnet)";
-          $("connectedAddr").textContent =
-            `${current.name === "ethereum" ? "MetaMask" : "TronLink"}: ${current.address}`;
+          const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON Nile (real testnet)";
+          $("connectedAddr").textContent = `${current.name === "ethereum" ? "MetaMask" : "TronLink"}: ${current.address}`;
           setStatus(`Reconnected to ${network} as ${current.address}.`, "ok");
           await refreshBalance();
         }
@@ -615,10 +565,7 @@ function setupViews() {
       links.forEach((l) => l.classList.remove("active"));
       link.classList.add("active");
       document.querySelectorAll(".view").forEach((view) => {
-        view.classList.toggle(
-          "hidden",
-          view.dataset.view !== link.dataset.view,
-        );
+        view.classList.toggle("hidden", view.dataset.view !== link.dataset.view);
       });
       $("viewTitle").textContent = viewTitles[link.dataset.view] || "Overview";
     });
@@ -640,16 +587,11 @@ function setupCopyAddress() {
   $("copyReceiveBtn").addEventListener("click", copyAddress);
 }
 
-// --- AUTOMATIC BALANCE & TRONLINK STATE SYNC ---
 
 window.addEventListener("message", (e) => {
   if (!e.data || !e.data.message) return;
   const action = e.data.message.action;
-  if (
-    action === "setAccount" ||
-    action === "setNode" ||
-    action === "tabReply"
-  ) {
+  if (action === "setAccount" || action === "setNode" || action === "tabReply") {
     if (current.name === "tron") {
       current.trySilentConnect().then((connected) => {
         if (connected) {
@@ -667,7 +609,6 @@ setInterval(() => {
   }
 }, 5000);
 
-// --- INITIALIZATION & EVENT BINDINGS ---
 
 populateAccountSelect();
 updatePlaceholders();
@@ -677,7 +618,7 @@ setupCopyAddress();
 
 $("accountSelect").addEventListener("change", connectSelectedAccount);
 $("connectWalletBtn").addEventListener("click", () =>
-  withLoading($("connectWalletBtn"), connectSelectedAccount),
+  withLoading($("connectWalletBtn"), connectSelectedAccount)
 );
 $("sendBtn").addEventListener("click", sendTransfer);
 $("approveBtn").addEventListener("click", approveSpender);
@@ -689,12 +630,8 @@ if (current.connectionMode !== "wallet") {
   setStatus('Click "Connect MetaMask" to get started.', "ok");
   current.trySilentConnect().then((connected) => {
     if (connected) {
-      $("connectedAddr").textContent =
-        `${current.name === "ethereum" ? "MetaMask" : "TronLink"}: ${current.address}`;
-      const network =
-        current.name === "ethereum"
-          ? "Ethereum Sepolia (real testnet)"
-          : "TRON Nile (real testnet)";
+      $("connectedAddr").textContent = `${current.name === "ethereum" ? "MetaMask" : "TronLink"}: ${current.address}`;
+      const network = current.name === "ethereum" ? "Ethereum Sepolia (real testnet)" : "TRON Nile (real testnet)";
       setStatus(`Reconnected to ${network} as ${current.address}.`, "ok");
       refreshBalance();
     }
@@ -706,3 +643,4 @@ if (metaMaskProvider && typeof metaMaskProvider.on === "function") {
   metaMaskProvider.on("chainChanged", () => window.location.reload());
   metaMaskProvider.on("accountsChanged", () => window.location.reload());
 }
+
