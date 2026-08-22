@@ -21,6 +21,24 @@ $("modalOverlay").addEventListener("click", (e) => {
   if (e.target === $("modalOverlay")) hideModal();
 });
 
+// Yes/no dialog. Resolves true on Continue, false on Cancel/backdrop click.
+function showConfirm(title, message) {
+  return new Promise((resolve) => {
+    $("confirmTitle").textContent = title;
+    $("confirmMessage").textContent = message;
+    $("confirmOverlay").classList.remove("hidden");
+    const done = (result) => {
+      $("confirmOverlay").classList.add("hidden");
+      resolve(result);
+    };
+    $("confirmOkBtn").onclick = () => done(true);
+    $("confirmCancelBtn").onclick = () => done(false);
+    $("confirmOverlay").onclick = (e) => {
+      if (e.target === $("confirmOverlay")) done(false);
+    };
+  });
+}
+
 async function withLoading(btn, fn) {
   btn.classList.add("is-loading");
   btn.disabled = true;
@@ -36,6 +54,14 @@ function toUnits(amountStr, dec) {
   const [whole, frac = ""] = amountStr.split(".");
   const fracPadded = (frac + "0".repeat(dec)).slice(0, dec);
   return BigInt(whole || "0") * 10n ** BigInt(dec) + BigInt(fracPadded || "0");
+}
+
+// Display formatting: pads/truncates an amount to the token's decimals the
+// same way toUnits() does (truncation, not rounding), so what the confirm
+// dialog shows is byte-for-byte what gets sent.
+function padDecimals(amountStr, dec) {
+  const [whole, frac = ""] = amountStr.split(".");
+  return `${whole || "0"}.${(frac + "0".repeat(dec)).slice(0, dec)}`;
 }
 
 function fromUnitsBig(value, dec) {
@@ -353,6 +379,24 @@ async function sendTransfer() {
   if (!current.isAddress(to) || !amount) {
     return showModal("error", "Can't send", "Enter a valid recipient address and amount.");
   }
+  const num = Number(amount);
+  if (!Number.isFinite(num) || num < 0) {
+    return showModal("error", "Can't send", "Enter a valid amount.");
+  }
+  // Show the exact amount (with the token's decimal precision) before the
+  // wallet popup opens. TronLink's own confirmation shows the raw base-unit
+  // number (e.g. 100,000,000 for 100) and that display can't be changed from
+  // the page — so this dialog is the authoritative "what you're sending".
+  const displayAmount = padDecimals(
+    num.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 }),
+    current.decimals
+  );
+  const tronHint =
+    current.name === "tron"
+      ? "\n\nTronLink's popup may show the raw number (e.g. 100,000,000) — that's its own display; the amount above is exactly what gets sent."
+      : "";
+  const ok = await showConfirm("Confirm send", `Send ${displayAmount} USDT to ${to}?${tronHint}`);
+  if (!ok) return;
   await withLoading($("sendBtn"), async () => {
     try {
       setStatus("Waiting for confirmation in your wallet...");
